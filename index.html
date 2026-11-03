@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blunt Hall 3D</title>
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+  "@mkkellogg/gaussian-splats-3d": "https://cdn.jsdelivr.net/npm/@mkkellogg/gaussian-splats-3d@0.4.7/build/gaussian-splats-3d.module.js"
+} }
+</script>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1>Blunt Hall 3D</h1>
+    <span class="sub">Indoor handheld LiDAR · TrueView GO · 29 Oct 2026</span>
+  </div>
+  <nav id="tabs">
+    <button data-view="lidar" class="active">LiDAR points</button>
+    <button data-view="rgb">Colored points</button>
+    <button data-view="slam">SLAM map</button>
+    <button data-view="model">3D model</button>
+    <button data-view="splat">Gaussian splat</button>
+  </nav>
+</header>
+
+<main>
+  <div id="viewport"></div>
+  <div id="slam2d" hidden>
+    <div class="slamwrap"><canvas id="slamcanvas"></canvas></div>
+  </div>
+
+  <aside id="panel">
+    <section id="info"></section>
+    <section id="controls"></section>
+    <section id="stats"></section>
+  </aside>
+  <div id="loading" hidden><div class="bar"><div class="fill"></div></div><span class="msg">Loading…</span></div>
+  <div id="help">Drag to orbit · right-drag to pan · scroll to zoom · double-click a point to focus</div>
+</main>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
