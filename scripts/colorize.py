@@ -1,7 +1,9 @@
 import os; RAW=os.environ.get("TVGO_RAW", os.path.expanduser("~/3DTemplehall"))
 import numpy as np, torch, cv2, glob, os, sys, open3d as o3d
 sys.path.insert(0,'.'); from calib import CAL, pose_at
-dev='cuda:0'
+dev='cuda:1'
+import json
+GM=json.load(open('gs/cameras.json')); KN=np.array(GM['K']); MW,MH=GM['W'],GM['H']
 pc=o3d.io.read_point_cloud('clean_2cm.ply'); P=np.asarray(pc.points); inten=(np.asarray(pc.colors)[:,0]*255).astype(np.uint8)
 Pg=torch.tensor(P,device=dev,dtype=torch.float64); N=len(P)
 # Pass 1: no reference -> plain weighted mean, saved as colored_2cm.npz.
@@ -42,6 +44,17 @@ for cam in (1,2,3):
                 pp=(qpix+dy+dx).clamp(0,H*Wd-1); zb.scatter_reduce_(0,pp,qn[qo],'amin')
         vis=dd<=zb[pix]*1.03+0.04
         idx=idx[vis]
+        # person mask (computed on the undistorted pinhole image): drop samples on detected people
+        mk=cv2.imread(f'gs/masks/c{cam}_{t:.6f}.png',0)
+        if mk is not None:
+            haspeople=(mk[MH//4:3*MH//4,MW//4:3*MW//4]==0).any()
+            zz=z[idx].clamp(min=1e-3); pu=(KN[0,0]*x[idx]/zz+KN[0,2]); pv=(KN[1,1]*y[idx]/zz+KN[1,2])
+            inside=(pu>=0)&(pu<MW)&(pv>=0)&(pv<MH)
+            M=torch.tensor(mk>127,device=dev)
+            good=torch.zeros_like(inside); ii=inside.nonzero().squeeze(1)
+            good[ii]=M[pv[ii].long(),pu[ii].long()]
+            if not haspeople: good|=~inside
+            idx=idx[good]
         im=torch.tensor(cv2.cvtColor(cv2.imread(fn),cv2.COLOR_BGR2RGB),device=dev,dtype=torch.float64)
         col=im[v[idx].long(),u[idx].long()]
         w=1.0/(d[idx]**2+0.1)*torch.cos(th[idx])**2
@@ -52,5 +65,5 @@ for cam in (1,2,3):
 rgb=(acc/wsum.clamp(min=1e-12)[:,None]).clamp(0,255).byte().cpu().numpy(); has=(wsum>0).cpu().numpy()
 rgb[~has]=np.repeat(inten[~has,None],3,1)
 print('colored fraction',has.mean())
-np.savez('colored_2cm_dyn.npz' if PASS2 else 'colored_2cm.npz',xyz=P.astype(np.float32),rgb=rgb,inten=inten,has=has)
+np.savez('colored_2cm_masked.npz' if PASS2 else 'colored_2cm_masked_p1.npz',xyz=P.astype(np.float32),rgb=rgb,inten=inten,has=has)
 np.save('cam_positions.npy',np.array(poses_out))

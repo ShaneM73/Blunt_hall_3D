@@ -6,11 +6,11 @@ A web viewer for a handheld LiDAR scan of the inside of Blunt Hall. The scan was
 
 | View | What it shows |
 |---|---|
-| LiDAR points | 2.78 M points (2 cm voxel grid) from 19.5 M raw returns, colored by intensity or height |
+| LiDAR points | 2.45 M people-free points (2 cm voxel grid) from 19.5 M raw returns, colored by intensity or height |
 | Colored points | The same points colored from 1,487 photos (3 cameras × ~2 Hz) |
 | SLAM map | Top-down occupancy floor plan with the SLAM-optimized walking path (66.8 m, 245 s) |
 | 3D model | Preliminary colored mesh (screened Poisson, 700 k triangles) |
-| Gaussian splat | Photo-realistic 3D Gaussian Splatting model (when built) |
+| Gaussian splat | 3D Gaussian Splatting model (460 k Gaussians), trained on the photos with LiDAR depth supervision |
 
 No build step is needed: the site is static HTML + three.js. To preview it locally, run `python3 -m http.server` and open `http://localhost:8000`.
 
@@ -31,15 +31,19 @@ The camera-extrinsic convention was confirmed by photometric consistency: the sa
 
 Raw folder via `TVGO_RAW` (default `~/3DTemplehall`); run in a work directory:
 
-1. `register.py`: decode the points and trajectory, then transform every frame into the world frame. Writes a LAZ file plus `world_*.npy`.
-2. `mesh.py`: 2 cm voxel grid, statistical outlier removal, normals oriented toward the trajectory, screened Poisson mesh.
-3. `colorize.py` (run twice): projects the points into every photo on the GPU, with z-buffer occlusion (including transient LiDAR returns within ±0.3 s of each photo) and distance/angle weights. The second run down-weights color outliers.
-4. `build_web.py`: writes `data/points.bin`, `trajectory.json`, `slam_map.png` and `meta.json`.
+1. `register.py`: decode the points and trajectory, then transform every frame into the world frame. Writes a LAZ file plus `world_*.npy`. A 2 cm voxel grid with statistical outlier removal gives `clean_2cm.ply`.
+2. `gs_prep.py` and `gs_masks.py`: undistort the fisheye photos to pinhole (972×1296, f = 450 px), write the camera poses, and make person masks (Mask R-CNN) plus valid-area masks.
+3. `colorize.py` (run twice): projects the points into every photo on the GPU, with z-buffer occlusion and distance/angle weights. Pixels where a person was detected are skipped. The second run down-weights color outliers.
+4. `carve.py`: free-space carving. A point that a laser beam later passed through belongs to a moving person, so it is removed (12 % of points).
+5. `mesh.py`: screened Poisson mesh of the people-free cloud.
+6. `build_web.py` and `slam_map.py`: write `data/points.bin`, `trajectory.json`, `slam_map.png` and `meta.json`.
+7. `gs_train.py`, then `gs_export.py`: 3D Gaussian Splatting with [gsplat](https://github.com/nerfstudio-project/gsplat). Starts from the LiDAR points and trains for 30k iterations at about 12 min on one A100. The loss is masked L1 + SSIM, plus **LiDAR depth supervision**, which removes the fog-like floaters typical of handheld captures. Per-image exposure correction is included. The model is exported to the 32-byte `.splat` format.
 
 `read_tvgo.py`, `pb.py` (generic protobuf dump) and `calib.py` are helpers. `photo_calib.py` and `conv_search.py` are the calibration checks.
 
 ## Known limitations
 
 - Coordinates are local SLAM metres (no GNSS indoors). Z is up and the floor is at about −1.0 m.
-- Point colors show ghosted figures where people walked alongside the operator.
+- People who walked alongside the operator were removed (photo masks + LiDAR carving), but faint smudges and one person standing still near the stairs remain.
+- The Gaussian splat looks best from viewpoints near the walking path. Far from it (or in corners the cameras barely saw) it becomes blurry or hazy.
 - The mesh has holes where the scanner had no line of sight, and blobs at open doorways.

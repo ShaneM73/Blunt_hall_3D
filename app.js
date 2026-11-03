@@ -197,7 +197,7 @@ const views = {
     const c = await loadCloud(); const t = await loadTraj();
     clearWorld(); world.add(c.points); world.add(t.group); frame();
     c.points.material.uniforms.mode.value = c.hasRGB ? 1 : 0;
-    info.innerHTML = `<h2>Colored points</h2><p>Each point takes its color from the three fisheye cameras (${fmt(meta.n_images)} photos), using the nearest-in-time unoccluded view.</p>
+    info.innerHTML = `<h2>Colored points</h2><p>Each point takes its color from the three fisheye cameras (${fmt(meta.n_images)} photos), as a weighted blend of every photo that sees it unoccluded (closer and more central views count more).</p>
       ${c.hasRGB ? '' : '<p class="note">RGB not available in this build — showing intensity.</p>'}
       <p class="note">${meta.rgb_note || ''}</p>`;
     ctl.innerHTML = `

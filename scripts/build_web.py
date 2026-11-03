@@ -2,7 +2,7 @@ import os; RAW=os.environ.get("TVGO_RAW", os.path.expanduser("~/3DTemplehall"))
 import numpy as np, json, open3d as o3d, cv2
 from scipy.spatial import cKDTree
 OUT=os.path.join(os.path.dirname(__file__),'..','data')+'/'
-d=np.load('colored_2cm_dyn.npz'); P=d['xyz'].astype(np.float64); C=d['rgb']; I=d['inten']; has=d['has']
+d=np.load('colored_2cm_static.npz'); P=d['xyz'].astype(np.float64); C=d['rgb']; I=d['inten']; has=d['has']
 # --- points.bin
 o=P.min(0); sc=float((P.max(0)-o).max()/65535)
 q=np.round((P-o)/sc).astype(np.uint16)
@@ -37,7 +37,7 @@ loops=sum(1 for _ in open(RAW+'/SLAM_DATA/TMP_LoopSearch/loop_ends.txt') if _.st
 foc=np.median(T[:,1:4],axis=0)
 meta=dict(n_raw=19472263,n_frames=len(T),duration_s=round(float(T[-1,0]-T[0,0]),1),path_m=round(path,1),voxel_cm=2,
   n_images=1487,floor_z=round(float(floor),2),ceiling_z=round(float(ceil),2),focus=foc.round(2).tolist(),rgb_frac=round(float(has.mean()),3),
-  rgb_note='Ghost-like smudges on some walls come from people walking alongside the scanner; they are baked into the photos.',
+  rgb_note='People in the photos were detected (Mask R-CNN) and excluded from coloring; faint smudges remain where detection missed them.',
   loop_closures=loops,
   slam_map=dict(image='data/slam_map.png',res=res,xmin=float(xmin),ymax=float(ymax),slice=f'{0.3:.1f}–{1.8:.1f} m above the floor',
      note='Dark = walls/objects (LiDAR hits), white = floor seen by the scanner, beige = never observed. Grid 5 cm.'),

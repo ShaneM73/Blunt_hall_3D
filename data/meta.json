@@ -12,21 +12,38 @@
   -1.92,
   0.48
  ],
- "rgb_frac": 0.819,
- "rgb_note": "Ghost-like smudges on some walls come from people walking alongside the scanner; they are baked into the photos.",
+ "rgb_frac": 0.799,
+ "rgb_note": "People were removed twice: detected in the photos (Mask R-CNN) and carved out of the LiDAR cloud wherever laser beams later passed through them. A few faint smudges remain.",
  "loop_closures": 1,
  "slam_map": {
   "image": "data/slam_map.png",
   "res": 0.025,
-  "xmin": -15.0,
-  "ymax": 20.0,
+  "grid_cm": 5,
+  "xmin": -13.0,
+  "ymax": 19.0,
   "slice": "0.15\u20132.2 m above the floor",
-  "note": "Black = walls (occupied over \u22651.2 m of height), gray = furniture and low objects, white = floor seen by the scanner, blue-gray = never observed. Grid 5 cm.",
-  "grid_cm": 5
+  "note": "Black = walls (occupied over \u22651.2 m of height), gray = furniture and low objects, white = floor seen by the scanner, blue-gray = never observed. Grid 5 cm."
  },
  "model": {
   "file": "data/model.ply",
   "short": "Screened Poisson",
-  "method": "Screened Poisson surface reconstruction (octree depth 11) of the 2 cm cleaned cloud, trimmed to within 5 cm of real points, decimated to 700,000 triangles and colored from the photo-colored points."
+  "method": "Screened Poisson surface reconstruction (octree depth 11) of the people-free 2 cm LiDAR cloud, trimmed to within 5 cm of real points, decimated to 699,999 triangles and colored from the photo-colored points."
+ },
+ "n_transient": 334826,
+ "splat": {
+  "file": "data/scene.splat",
+  "n": 459925,
+  "views": 1487,
+  "cam_pos": [
+   -1.5,
+   -2.8,
+   0.3
+  ],
+  "cam_look": [
+   6.0,
+   -3.6,
+   0.0
+  ],
+  "note": "3D Gaussian Splatting (gsplat) trained on 1487 undistorted fisheye photos with poses from the SLAM trajectory, initialized from the colored LiDAR points. People were masked out of the photos, and the splat depth was supervised by the people-free (carved) LiDAR cloud. Best viewed from inside the corridors near the walking path."
  }
 }
