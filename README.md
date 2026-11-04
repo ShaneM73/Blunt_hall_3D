@@ -6,11 +6,11 @@ A web viewer for a handheld LiDAR scan of the inside of Blunt Hall. The scan was
 
 | View | What it shows |
 |---|---|
-| LiDAR points | 2.45 M people-free points (2 cm voxel grid) from 19.5 M raw returns, colored by intensity or height |
-| Colored points | The same points colored from 1,487 photos (3 cameras × ~2 Hz) |
+| LiDAR points | 2.5 M denoised, people-free points (1.5 cm) in the well-scanned zone (within 5 m of the walking path) |
+| Colored points | The same points colored from 1,487 photos, with exposure and white balance equalized per photo |
 | SLAM map | Top-down occupancy floor plan with the SLAM-optimized walking path (66.8 m, 245 s) |
-| 3D model | Preliminary colored mesh (screened Poisson, 700 k triangles) |
-| Gaussian splat | 3D Gaussian Splatting model (460 k Gaussians), trained on the photos with LiDAR depth supervision |
+| 3D model | Colored mesh (screened Poisson depth 12, 1.8 M triangles) |
+| Gaussian splat | 3D Gaussian Splatting model (664 k Gaussians), trained on the photos with LiDAR depth supervision |
 
 No build step is needed: the site is static HTML + three.js. To preview it locally, run `python3 -m http.server` and open `http://localhost:8000`.
 
@@ -41,9 +41,23 @@ Raw folder via `TVGO_RAW` (default `~/3DTemplehall`); run in a work directory:
 
 `read_tvgo.py`, `pb.py` (generic protobuf dump) and `calib.py` are helpers. `photo_calib.py` and `conv_search.py` are the calibration checks.
 
+## High-quality segment (`scripts/hq/`)
+
+The current web data comes from this second pipeline. It checks quality at each step (`quality_eval.py`, `noise_diag.py`):
+
+1. `refine_poses.py`: aligns 3 s submaps with point-to-plane ICP and optimizes them in a pose graph. The on-device SLAM was already consistent to about 0.5 cm, so this changes little.
+2. `hq_cloud.py`: keeps returns 0.5–6 m from the scanner and within 5 m of the path, on a 1 cm voxel grid. It removes outliers using local planes fitted on a 2.5 cm grid and pulls planar points onto their surface.
+3. `carve_hq.py`: removes moving people by free-space carving.
+4. `colorize_hq.py`: estimates a gain for each photo and color channel against the blended colors (3 iterations, about ±9 % correction). The final blend uses sharper best-view weights, rejects color outliers, applies person masks and handles back-facing surfaces.
+5. `mesh_hq.py`: screened Poisson at depth 12, trimmed to within 3 cm of real points, decimated to 1.8 M triangles.
+6. `build_web_hq.py`: writes the web data.
+7. `gs_prep_hq.py` and `gs_train.py`: Gaussian splat at 1.5× resolution (1458×1944). It starts from the 1 cm cloud near the path plus the 2 cm cloud farther out, with LiDAR depth supervision.
+
+The robust wall noise is 0.5–2 cm, which is the Hesai sensor's level. Most of the apparent thickness came from outliers and people.
+
 ## Known limitations
 
 - Coordinates are local SLAM metres (no GNSS indoors). Z is up and the floor is at about −1.0 m.
 - People who walked alongside the operator were removed (photo masks + LiDAR carving), but faint smudges and one person standing still near the stairs remain.
 - The Gaussian splat looks best from viewpoints near the walking path. Far from it (or in corners the cameras barely saw) it becomes blurry or hazy.
-- The mesh has holes where the scanner had no line of sight, and blobs at open doorways.
+- The points and mesh cover only the well-scanned zone. Rooms and corridor ends seen only through doorways were left out; they need a new scan.
