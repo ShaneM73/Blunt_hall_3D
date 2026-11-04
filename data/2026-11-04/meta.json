@@ -537,5 +537,126 @@
   "faces": 4266,
   "res_cm": 2.0,
   "note": "Simplified structural model in the style of a SketchUp model: walls, floors and ceilings fitted as flat rectangles on the building axes from the cleaned LiDAR cloud, with door openings, and photo textures projected from 5,745 photos at 2 cm per texel (exposure-equalized, people masked). The central stairwell keeps its measured mesh. Each floor is a glTF 2.0 file that opens in Blender, Unity or Unreal."
+ },
+ "splat": {
+  "files": [
+   {
+    "file": "splat_f0_0.splat",
+    "floor": 0,
+    "n": 208608
+   },
+   {
+    "file": "splat_f1_0.splat",
+    "floor": 1,
+    "n": 106761
+   },
+   {
+    "file": "splat_f2_0.splat",
+    "floor": 2,
+    "n": 659811
+   },
+   {
+    "file": "splat_f3_0.splat",
+    "floor": 3,
+    "n": 80716
+   },
+   {
+    "file": "splat_f4_0.splat",
+    "floor": 4,
+    "n": 212313
+   },
+   {
+    "file": "splat_f5_0.splat",
+    "floor": 5,
+    "n": 138337
+   }
+  ],
+  "n": 1406546,
+  "views": 5745,
+  "views_by_floor": {
+   "0": {
+    "cam_pos": [
+     19.92,
+     -6.04,
+     -7.53
+    ],
+    "cam_look": [
+     20.5,
+     -1.78,
+     -7.83
+    ]
+   },
+   "1": {
+    "cam_pos": [
+     13.25,
+     -2.52,
+     -3.73
+    ],
+    "cam_look": [
+     11.53,
+     1.42,
+     -4.03
+    ]
+   },
+   "2": {
+    "cam_pos": [
+     13.33,
+     -9.78,
+     -0.07
+    ],
+    "cam_look": [
+     16.27,
+     -6.65,
+     -0.37
+    ]
+   },
+   "3": {
+    "cam_pos": [
+     13.18,
+     1.55,
+     3.59
+    ],
+    "cam_look": [
+     8.92,
+     2.08,
+     3.29
+    ]
+   },
+   "4": {
+    "cam_pos": [
+     10.57,
+     4.93,
+     -1.48
+    ],
+    "cam_look": [
+     10.84,
+     0.64,
+     -1.78
+    ]
+   },
+   "5": {
+    "cam_pos": [
+     28.89,
+     -8.64,
+     -7.31
+    ],
+    "cam_look": [
+     33.16,
+     -8.14,
+     -7.61
+    ]
+   }
+  },
+  "cam_pos": [
+   13.33,
+   -9.78,
+   -0.07
+  ],
+  "cam_look": [
+   16.27,
+   -6.65,
+   -0.37
+  ],
+  "note": "3D Gaussian Splatting (gsplat) trained on 5,745 undistorted fisheye photos at 1458\u00d71944 with SLAM-refined poses, initialized from the people-free 1 cm LiDAR cloud near the path plus a 2 cm cloud farther out. People were masked out of the photos and the splat depth was supervised by the carved LiDAR cloud. Each floor is a separate file; best viewed from inside the corridors near the walking path."
  }
 }
