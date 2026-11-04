@@ -6,34 +6,25 @@
 Usage: s10_web.py <id> "<title>"     env BH_VOXEL (cm, default 2)"""
 import os, sys, json
 import numpy as np, open3d as o3d, cv2
-from common import W, REPO, RAW, traj, log
+from common import W, REPO, RAW, traj, log, removed_mask, detect_floors
 
 DID, TITLE = sys.argv[1], sys.argv[2]
 OUT = os.path.join(REPO, 'data', DID); os.makedirs(OUT, exist_ok=True)
 VOX = float(os.environ.get('BH_VOXEL', 2.0)) / 100
-d = np.load(W('color', 'hq_colored.npz')); rm = np.load(W('clouds', 'person_rm.npy')); k = d['has'] & ~rm
+d = np.load(W('color', 'hq_colored.npz')); rm = removed_mask(); k = d['has'] & ~rm
 P, C, I, Nr = d['xyz'][k], d['rgb'][k], d['inten'][k], d['nrm'][k]
 T = traj(); tz = T[:, 3]
 
-# ---- floors: histogram of up-facing horizontal points; keep peaks the operator walked on (path ~0.9-1.6 m above)
-hz = P[Nr[:, 2] > 0.9, 2]           # up-facing only (normals face the path): ceilings are excluded
-h, e = np.histogram(hz, bins=np.arange(hz.min(), hz.max() + 0.05, 0.05))
-cand = [i for i in range(1, len(h) - 1) if h[i] >= h[i - 1] and h[i] >= h[i + 1] and h[i] > 0.01 * h.max()]
-floors = []
-for i in sorted(cand, key=lambda i: -h[i]):
-    z = (e[i] + e[i + 1]) / 2; above = tz - z; on = ((above > 0.8) & (above < 1.7)).sum()
-    if on > 150 and all(abs(z - f['z']) > 2.0 for f in floors):     # >= 15 s of walking on it
-        floors.append(dict(z=round(float(z), 2), dwell_s=round(on / 10, 1)))
-floors.sort(key=lambda f: f['z'])
-for j, f in enumerate(floors):
-    f['zmin'] = round(f['z'] - 0.3, 2); f['zmax'] = round(floors[j + 1]['z'] - 0.3, 2) if j + 1 < len(floors) else round(float(P[:, 2].max()) + 0.1, 2)
-    dz = P[(Nr[:, 2] < -0.9) & (P[:, 2] > f['z'] + 2.0) & (P[:, 2] < min(f['zmax'] + 0.3, f['z'] + 6)), 2]   # down-facing = ceilings
-    if len(dz) > 1000:
-        hc, ec = np.histogram(dz, bins=np.arange(dz.min(), dz.max() + 0.1, 0.05)); cz_ = float(ec[np.argmax(hc)] + 0.025)
-    else: cz_ = min(f['zmax'] + 0.3, f['z'] + 3.0)
-    f['ceiling_z'] = round(cz_, 2); f['ceiling'] = round(cz_ - 0.15, 2)
+# ---- floors (common.detect_floors): up-facing surfaces the path stood on; ceilings from down-facing surfaces
+floors = detect_floors(P, Nr, T)
 main = int(np.argmax([f['dwell_s'] for f in floors]))
-for j, f in enumerate(floors): f['name'] = 'Main level' if j == main else f'Level {j - main:+d}'
+names = os.environ.get('BH_FLOOR_NAMES', '').split('|')
+for j, f in enumerate(floors): f['name'] = names[j] if len(names) == len(floors) else ('Main level' if j == main else f'Level {j - main:+d}')
+# areas (work/<id>/regions.json): [{name, box:[x0,x1,y0,y1], zmin, zmax, floor (for the plan view), ceiling?}] -> extra entries after the floors
+regions = json.load(open(W('regions.json'))) if os.path.exists(W('regions.json')) else []
+for r in regions:
+    r.update(kind='area', z=r.get('z', r['zmin'] + 0.3)); r.setdefault('ceiling', r['zmax'])
+floors_only = list(floors); floors = floors + regions
 log('floors', floors)
 
 # ---- points per floor
@@ -47,7 +38,9 @@ def write_pts(fn, X, Cc, Ii):
         f.write(b'BHPC'); f.write(np.array([len(X), 1], np.uint32).tobytes()); f.write(np.array([*o, sc], np.float32).tobytes())
         f.write(q.tobytes()); f.write(Ii.astype(np.uint8).tobytes()); f.write(Cc.tobytes())
 for j, f in enumerate(floors):
-    m = (Pv[:, 2] >= f['zmin']) & (Pv[:, 2] < f['zmax']); ii = np.flatnonzero(m)
+    m = (Pv[:, 2] >= f['zmin']) & (Pv[:, 2] < f['zmax'])
+    if f.get('box'): b = f['box']; m &= (Pv[:, 0] >= b[0]) & (Pv[:, 0] < b[1]) & (Pv[:, 1] >= b[2]) & (Pv[:, 1] < b[3])
+    ii = np.flatnonzero(m)
     ii = ii[np.argsort(Pv[ii, 0] + Pv[ii, 1])]          # spatially coherent parts
     parts = np.array_split(ii, max(1, int(np.ceil(len(ii) / 4_000_000))))
     f['points'] = []
@@ -63,6 +56,9 @@ for t in tj['tiles']:
     M = np.load(W('mesh', 'tiles', t['file'])); V0, F0, C0 = M['v'], M['f'], M['c']; cz = V0[F0][:, :, 2].mean(1)
     for j, fl in enumerate(floors):
         sel = (cz >= fl['zmin']) & (cz < fl['zmax'])
+        if fl.get('box'):
+            cx_, cy_ = V0[F0][:, :, 0].mean(1), V0[F0][:, :, 1].mean(1); b = fl['box']
+            sel &= (cx_ >= b[0]) & (cx_ < b[1]) & (cy_ >= b[2]) & (cy_ < b[3])
         if sel.sum() < 2000: continue
         m = o3d.geometry.TriangleMesh(o3d.utility.Vector3dVector(V0.astype(np.float64)), o3d.utility.Vector3iVector(F0[sel]))
         m.vertex_colors = o3d.utility.Vector3dVector(C0 / 255.); m.remove_unreferenced_vertices()
@@ -83,6 +79,7 @@ log('web mesh pieces', len(tiles), 'triangles', ntri, '(full-resolution mesh: %d
 res = 0.05; xmin, ymin = np.floor(P[:, :2].min(0)) - 1; xmax, ymax = np.ceil(P[:, :2].max(0)) + 1
 nx, ny = int((xmax - xmin) / res), int((ymax - ymin) / res)
 for j, f in enumerate(floors):
+    if f.get('kind') == 'area': f['slam_map'] = f'slam_map_f{f["floor"]}.png'; f['z'] = floors[f['floor']]['z'] if 'zplan' not in f else f['zplan']; continue
     fl = f['z']; Q = P[(P[:, 2] > fl + 0.15) & (P[:, 2] < fl + 2.2)]
     ix = ((Q[:, 0] - xmin) / res).astype(int); iy = ((ymax - Q[:, 1]) / res).astype(int); iz = ((Q[:, 2] - fl - 0.15) / 0.1).astype(int)
     occ = np.zeros((ny, nx, 21), bool); occ[iy, ix, iz] = True; vb = occ.sum(2)
@@ -112,7 +109,7 @@ meta['loop_closures'] = sum(1 for l in open(lf) if l.strip()) if os.path.exists(
 old = os.path.join(OUT, 'meta.json')
 if os.path.exists(old):
     o = json.load(open(old))
-    for k_ in ('splat',):
+    for k_ in ('splat', 'structure'):
         if k_ in o: meta[k_] = o[k_]
 json.dump(meta, open(old, 'w'), indent=1)
 log('wrote', OUT, 'MB', round(sum(os.path.getsize(os.path.join(OUT, f)) for f in os.listdir(OUT)) / 1e6, 1))

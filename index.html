@@ -9,7 +9,8 @@
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
-  "@mkkellogg/gaussian-splats-3d": "https://cdn.jsdelivr.net/npm/@mkkellogg/gaussian-splats-3d@0.4.7/build/gaussian-splats-3d.module.js"
+  "@mkkellogg/gaussian-splats-3d": "https://cdn.jsdelivr.net/npm/@mkkellogg/gaussian-splats-3d@0.4.7/build/gaussian-splats-3d.module.js",
+  "three-mesh-bvh": "https://cdn.jsdelivr.net/npm/three-mesh-bvh@0.7.6/build/index.module.js"
 } }
 </script>
 </head>
@@ -24,6 +25,7 @@
     <button data-view="rgb">Colored points</button>
     <button data-view="slam">SLAM map</button>
     <button data-view="model">3D model</button>
+    <button data-view="build">Building model</button>
     <button data-view="splat">Gaussian splat</button>
   </nav>
 </header>
@@ -41,6 +43,7 @@
     <section id="stats"></section>
   </aside>
   <div id="loading" hidden><div class="bar"><div class="fill"></div></div><span class="msg">Loading…</span></div>
+  <div id="walkhud" hidden>Walk mode · WASD / arrows to move · Shift to run · mouse to look · Esc to exit</div>
   <div id="help">Drag to orbit · right-drag to pan · scroll to zoom · double-click a point to focus</div>
 </main>
 

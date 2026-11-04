@@ -8,13 +8,23 @@ from common import W, read_slam_all, frame_points, traj, quat_R, log
 
 CROP = float(os.environ.get('BH_CROP', 5.0)); dev = 'cuda:' + os.environ.get('BH_GPU', '1')
 T = traj(); idx, pts = read_slam_all()
-out, ints = [], []
+# range: indoors 0.5-6 m; frames taken inside a 'range_box' of regions.json (e.g. outside the entrance) keep returns up to
+# RMAX so tall facades are modeled; points are kept within max(CROP, r_max - 1) of the path
+RMAX = float(os.environ.get('BH_RMAX', 20.0))
+import json
+RBOX = [r['range_box'] for r in (json.load(open(W('regions.json'))) if os.path.exists(W('regions.json')) else []) if 'range_box' in r]
+out, ints, thr = [], [], []; rmax = np.zeros(len(T))
 for k, p in frame_points(idx, pts):
-    B = np.stack([p['x'], p['y'], p['z']], 1).astype(np.float64); r = np.linalg.norm(B, axis=1); m = (r > 0.5) & (r < 6.0)
-    out.append((B[m] @ quat_R(T[k, 4:8]).T + T[k, 1:4]).astype(np.float32)); ints.append(p['a'][m])
-Wp = np.vstack(out); WI = np.concatenate(ints); del out, ints
-dist, _ = cKDTree(T[::2, 1:4]).query(Wp, workers=64, distance_upper_bound=CROP); k = np.isfinite(dist)
-Wp, WI = Wp[k], WI[k]; log('raw returns 0.5-6 m, within %.0f m of path' % CROP, len(Wp))
+    B = np.stack([p['x'], p['y'], p['z']], 1).astype(np.float64); r = np.linalg.norm(B, axis=1)
+    x, y, z = T[k, 1:4]
+    rmax[k] = RMAX if any(b[0] <= x < b[1] and b[2] <= y < b[3] and b[4] <= z < b[5] for b in RBOX) else 6.0
+    a = p['a']; m = (r > 0.5) & (r < rmax[k])
+    out.append((B[m] @ quat_R(T[k, 4:8]).T + T[k, 1:4]).astype(np.float32)); ints.append(a[m]); thr.append(np.full(m.sum(), max(CROP, rmax[k] - 1), np.float32))
+Wp = np.vstack(out); WI = np.concatenate(ints); TH = np.concatenate(thr); del out, ints, thr
+np.save(W('decoded', 'frame_rmax.npy'), rmax)
+log('frames with extended range (> 6 m): %d of %d, max %.1f m' % ((rmax > 6).sum(), len(T), rmax.max()))
+dist, _ = cKDTree(T[::2, 1:4]).query(Wp, workers=64, distance_upper_bound=RMAX); k = dist < TH
+Wp, WI = Wp[k], WI[k]; del TH; log('raw returns kept (adaptive range / crop)', len(Wp))
 pc = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(Wp.astype(np.float64))); del Wp
 pc.colors = o3d.utility.Vector3dVector(np.repeat(WI[:, None] / 255., 3, 1)); del WI
 v = pc.voxel_down_sample(0.01); P = np.asarray(v.points).astype(np.float32); Iv = (np.asarray(v.colors)[:, 0] * 255).astype(np.uint8); del v
@@ -43,4 +53,6 @@ for s in range(0, len(P), 4 * CH):
 log('kept after denoise', keep.sum(), '(%.1f%%)' % (keep.mean() * 100))
 P2, N2, I2 = newP[keep], nrm[keep], Iv[keep]
 _, j = cKDTree(T[:, 1:4]).query(P2, workers=64); N2[(N2 * (T[j, 1:4] - P2)).sum(1) < 0] *= -1   # normals face the path
-np.savez(W('clouds', 'hq_cloud.npz'), xyz=P2.astype(np.float32), nrm=N2.astype(np.float32), inten=I2)
+dp, _ = cKDTree(T[::2, 1:4]).query(P2, workers=64)
+log('points farther than 5.5 m from the path (open spaces): %d' % (dp > 5.5).sum())
+np.savez(W('clouds', 'hq_cloud.npz'), xyz=P2.astype(np.float32), nrm=N2.astype(np.float32), inten=I2, dpath=dp.astype(np.float16))

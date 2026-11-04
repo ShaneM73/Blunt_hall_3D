@@ -17,7 +17,9 @@ keep = (op > 0.03) & (sc.max(1) < 1.0) & (imp > 0)
 idx = np.flatnonzero(keep); idx = idx[np.argsort(-imp[idx])][:MAXN]
 fl = meta['floors']; files = []
 for j, f in enumerate(fl):
-    sel = idx[(xyz[idx, 2] >= f['zmin']) & (xyz[idx, 2] < f['zmax'])]
+    m = (xyz[idx, 2] >= f['zmin']) & (xyz[idx, 2] < f['zmax'])
+    if f.get('box'): b = f['box']; m &= (xyz[idx, 0] >= b[0]) & (xyz[idx, 0] < b[1]) & (xyz[idx, 1] >= b[2]) & (xyz[idx, 1] < b[3])
+    sel = idx[m]
     for k, part in enumerate(np.array_split(sel, max(1, int(np.ceil(len(sel) / PART))))):
         buf = np.zeros(len(part), dtype=[('p', '<f4', 3), ('s', '<f4', 3), ('c', 'u1', 4), ('r', 'u1', 4)])
         buf['p'] = xyz[part]; buf['s'] = sc[part]; buf['c'][:, :3] = (rgb[part] * 255).round(); buf['c'][:, 3] = (op[part] * 255).round()
@@ -30,6 +32,8 @@ Fw = np.array([np.array(c['c2w'])[:3, 2] for c in cams])
 views = {}
 for j, f in enumerate(fl):
     on = np.flatnonzero((C[:, 2] - f['z'] > 0.8) & (C[:, 2] - f['z'] < 1.8))
+    if f.get('box'):
+        b = f['box']; on = np.flatnonzero((C[:, 0] >= b[0]) & (C[:, 0] < b[1]) & (C[:, 1] >= b[2]) & (C[:, 1] < b[3]) & (C[:, 2] > f['zmin']) & (C[:, 2] < f['zmax']))
     if not len(on): continue
     med = np.median(C[on], 0); i = on[np.argmin(np.linalg.norm(C[on] - med, axis=1))]
     fw = Fw[i].copy(); fw[2] = 0; fw /= max(np.linalg.norm(fw), 1e-6)

@@ -108,3 +108,35 @@ def read_image(rec):
 
 def log(*a):
     print(*a, flush=True)
+
+
+def removed_mask(n=None):
+    """People (s07) + clutter (s07b) flags over color/hq_colored.npz points."""
+    rm = np.load(W('clouds', 'person_rm.npy'))
+    f = W('clouds', 'clutter_rm.npy')
+    if os.path.exists(f) and os.path.getmtime(f) >= os.path.getmtime(W('color', 'hq_colored.npz')):
+        rm = rm | np.load(f)
+    return rm
+
+
+def detect_floors(P, Nr, T):
+    """Floors = peaks of up-facing horizontal surfaces (normals face the path) that the walk stood on for >= 15 s
+    (device 0.8-1.7 m above); each floor's band runs to the next floor; ceiling = mode of down-facing surfaces."""
+    tz = T[:, 3]
+    hz = P[Nr[:, 2] > 0.9, 2]           # up-facing only (normals face the path): ceilings are excluded
+    h, e = np.histogram(hz, bins=np.arange(hz.min(), hz.max() + 0.05, 0.05))
+    cand = [i for i in range(1, len(h) - 1) if h[i] >= h[i - 1] and h[i] >= h[i + 1] and h[i] > 0.01 * h.max()]
+    floors = []
+    for i in sorted(cand, key=lambda i: -h[i]):
+        z = (e[i] + e[i + 1]) / 2; above = tz - z; on = ((above > 0.8) & (above < 1.7)).sum()
+        if on > 150 and all(abs(z - f['z']) > 2.0 for f in floors):     # >= 15 s of walking on it
+            floors.append(dict(z=round(float(z), 2), dwell_s=round(on / 10, 1)))
+    floors.sort(key=lambda f: f['z'])
+    for j, f in enumerate(floors):
+        f['zmin'] = round(f['z'] - 0.3, 2); f['zmax'] = round(floors[j + 1]['z'] - 0.3, 2) if j + 1 < len(floors) else round(float(P[:, 2].max()) + 0.1, 2)
+        dz = P[(Nr[:, 2] < -0.9) & (P[:, 2] > f['z'] + 2.0) & (P[:, 2] < min(f['zmax'] + 0.3, f['z'] + 6)), 2]   # down-facing = ceilings
+        if len(dz) > 1000:
+            hc, ec = np.histogram(dz, bins=np.arange(dz.min(), dz.max() + 0.1, 0.05)); cz_ = float(ec[np.argmax(hc)] + 0.025)
+        else: cz_ = min(f['zmax'] + 0.3, f['z'] + 3.0)
+        f['ceiling_z'] = round(cz_, 2); f['ceiling'] = round(cz_ - 0.15, 2)
+    return floors

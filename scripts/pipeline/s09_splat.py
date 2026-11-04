@@ -8,7 +8,7 @@ from gsplat import rasterization
 from gsplat.strategy import DefaultStrategy
 from scipy.spatial import cKDTree
 from concurrent.futures import ThreadPoolExecutor
-from common import W, traj, log
+from common import W, traj, log, removed_mask
 
 torch.manual_seed(0); dev = 'cuda:' + os.environ.get('BH_GPU', '0'); torch.cuda.set_device(dev)
 meta = json.load(open(W('images', 'cameras.json'))); Wd, Hd = meta['W'], meta['H']; K = torch.tensor(meta['K'], dtype=torch.float32, device=dev)
@@ -28,7 +28,7 @@ log('images loaded')
 c2w = torch.tensor([f['c2w'] for f in frames], dtype=torch.float32, device=dev); w2c = torch.linalg.inv(c2w)
 scene_scale = float(os.environ.get('BH_GS_SCALE', 7.0))   # local scale (as scan 1), not building extent: keeps densify thresholds
 # init cloud
-d = np.load(W('color', 'hq_colored.npz')); k = d['has'] & ~np.load(W('clouds', 'person_rm.npy'))
+d = np.load(W('color', 'hq_colored.npz')); k = d['has'] & ~removed_mask()
 Pn, Cn = d['xyz'][k], d['rgb'][k] / 255.
 T = traj(); Wx = np.load(W('decoded', 'world_xyz.npy'), mmap_mode='r'); sub = np.asarray(Wx[::4])
 dist, _ = cKDTree(T[::2, 1:4]).query(sub, workers=64, distance_upper_bound=5.0); far = sub[~np.isfinite(dist)]
@@ -72,7 +72,10 @@ lrs = {'means': 1.6e-4 * scene_scale, 'scales': 5e-3, 'quats': 1e-3, 'opacities'
 opts = {k: torch.optim.Adam([{'params': params[k], 'lr': lrs[k], 'name': k}], eps=1e-15) for k in params}
 sched = torch.optim.lr_scheduler.ExponentialLR(opts['means'], gamma=0.01 ** (1 / ITERS))
 expo = torch.nn.Parameter(torch.zeros(n, 3, 4, device=dev)); expo_opt = torch.optim.Adam([expo], lr=1e-3)
-strategy = DefaultStrategy(refine_stop_iter=int(ITERS * 0.5), reset_every=3000, refine_every=100, absgrad=True, grow_grad2d=0.0008, verbose=False)
+# large scenes: every area is seen only now and then, so periodic opacity resets prune unrevisited regions -> no resets
+G2D = float(os.environ.get('BH_GS_GROW', 0.0005)); RESET = int(os.environ.get('BH_GS_RESET', 10 ** 9))
+strategy = DefaultStrategy(refine_stop_iter=int(ITERS * 0.6), reset_every=RESET, refine_every=100, absgrad=True, grow_grad2d=G2D, verbose=False)
+log('strategy: grow_grad2d', G2D, 'reset_every', RESET)
 strategy.check_sanity(params, opts); state = strategy.initialize_state(scene_scale=scene_scale)
 gk = torch.tensor(cv2.getGaussianKernel(11, 1.5), dtype=torch.float32, device=dev); gk = (gk @ gk.T)[None, None].repeat(3, 1, 1, 1)
 def ssim(a, b):
@@ -99,7 +102,8 @@ for step in range(ITERS):
         lu, lv, lz = r; mk = mm[lv, lu]; lu, lv, lz = lu[mk], lv[mk], lz[mk]
         if len(lz) > 100: dl = ((dep[lv, lu] - lz).abs() / lz).mean()
     lam = 0.5 if step < ITERS // 4 else 0.2
-    loss = 0.8 * l1 + 0.2 * (1 - ss) + lam * dl + 1e-3 * torch.sigmoid(params['opacities']).mean()
+    vis = (info['radii'][0] > 0) if info['radii'].dim() == 2 else (info['radii'][0] > 0).any(-1)   # opacity penalty on visible Gaussians only
+    loss = 0.8 * l1 + 0.2 * (1 - ss) + lam * dl + 1e-3 * torch.sigmoid(params['opacities'][vis]).mean()
     loss.backward()
     strategy.step_post_backward(params, opts, state, step, info, packed=False)
     for o in opts.values(): o.step(); o.zero_grad(set_to_none=True)
