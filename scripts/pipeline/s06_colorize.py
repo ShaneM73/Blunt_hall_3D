@@ -13,6 +13,7 @@ import json
 dev = 'cuda:' + os.environ.get('BH_GPU', '1')
 d = np.load(W('clouds', 'hq_cloud.npz')); tr = np.load(W('clouds', 'hq_transient.npy'))
 P = d['xyz'][~tr]; inten = d['inten'][~tr]; nrm = d['nrm'][~tr]; N = len(P); log('points', N)
+far_pt = d['dpath'][~tr].astype(np.float32) > 5.5 if 'dpath' in d else np.zeros(N, bool)   # open-space points: allow far views
 T = traj(); pose = Poser(T)
 Wp = np.load(W('decoded', 'world_xyz.npy'), mmap_mode='r'); WF = np.load(W('decoded', 'world_frame.npy'))
 T0 = T; fb = np.searchsorted(WF, np.arange(len(T0) + 1))
@@ -24,6 +25,11 @@ lin = (key[:, 0] * dims[1] + key[:, 1]) * dims[2] + key[:, 2]; order = np.argsor
 ublk, start = np.unique(lin[order], return_index=True); end = np.r_[start[1:], N]
 bc = np.stack(np.unravel_index(ublk, dims), 1) * BS + kmin * BS + BS / 2
 order_g = torch.tensor(order, device=dev)
+# second block index over open-space points only (same grid), used for 6 m .. VMAX views
+fidx = np.flatnonzero(far_pt); flin = lin[fidx]; forder = fidx[np.argsort(flin, kind='stable')]
+fub, fst = np.unique(np.sort(flin), return_index=True); fen = np.r_[fst[1:], len(forder)]
+fbc = np.stack(np.unravel_index(fub, dims), 1) * BS + kmin * BS + BS / 2; forder_g = torch.tensor(forder, device=dev)
+farg = torch.tensor(far_pt, device=dev); VMAX = float(os.environ.get('BH_RMAX', 20.0))
 Pg = torch.tensor(P, device=dev, dtype=torch.float64); Ng = torch.tensor(nrm, device=dev, dtype=torch.float64)
 S = 4; H, Wd = 2592 // S, 1944 // S
 vis_cache = []; vcount = torch.zeros(N, device=dev); mcount = torch.zeros(N, device=dev); cam_pos = []
@@ -39,14 +45,17 @@ for k, r in enumerate(recs):
     fx, fy, cx, cy = CAL[cam]['K']; kk = CAL[cam]['D']
     Rwb, twb = pose(t); cpos = twb + Rwb @ np.array(CAL[cam]['t']); cam_pos.append((cam, t, *cpos))
     nb = np.flatnonzero(np.linalg.norm(bc - cpos, axis=1) < 6 + BS)
-    if len(nb) == 0: vis_cache.append(None); continue
-    sel = order_g[torch.tensor(np.concatenate([np.arange(start[i], end[i]) for i in nb]), device=dev)]
+    fd = np.linalg.norm(fbc - cpos, axis=1) if len(fbc) else np.zeros(0); fnb = np.flatnonzero((fd >= 6 + BS) & (fd < VMAX + BS))
+    if len(nb) == 0 and len(fnb) == 0: vis_cache.append(None); continue
+    parts = [order_g[torch.tensor(np.concatenate([np.arange(start[i], end[i]) for i in nb]), device=dev)]] if len(nb) else []
+    if len(fnb): parts.append(forder_g[torch.tensor(np.concatenate([np.arange(fst[i], fen[i]) for i in fnb]), device=dev)])
+    sel = torch.cat(parts)
     Rwb_g = torch.tensor(Rwb, device=dev); twb_g = torch.tensor(twb, device=dev)
     def proj(X):
         Pc = ((X - twb_g) @ Rwb_g - tb) @ R_cb.T; x, y, z = Pc.unbind(1); rr = torch.hypot(x, y) + 1e-9; th = torch.atan2(rr, z); t2 = th * th
         thd = th * (1 + kk[0] * t2 + kk[1] * t2 ** 2 + kk[2] * t2 ** 3 + kk[3] * t2 ** 4); return Pc, fx * thd * x / rr + cx, fy * thd * y / rr + cy, th
     Pc, u, v, th = proj(Pg[sel]); dd = Pc.norm(dim=1)
-    ok = (th < 1.2) & (u >= 0) & (u < 1944) & (v >= 0) & (v < 2592) & (dd < 6) & (dd > 0.3)
+    ok = (th < 1.2) & (u >= 0) & (u < 1944) & (v >= 0) & (v < 2592) & (dd > 0.3) & ((dd < 6) | (farg[sel] & (dd < VMAX)))
     vd = torch.tensor(cpos, device=dev) - Pg[sel]; vd = vd / vd.norm(dim=1, keepdim=True); cosi = (vd * Ng[sel]).sum(1).abs()
     ok &= cosi > 0.15
     li = ok.nonzero().squeeze(1)

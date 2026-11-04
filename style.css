@@ -63,3 +63,9 @@ main { position: relative; height: calc(100% - 58px); }
   #panel { top: auto; bottom: 44px; left: 16px; right: 16px; width: auto; max-height: 40%; }
   #help { display: none; }
 }
+#walkhud { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); font-size: 13px; color: #fff;
+  background: #000a; padding: 6px 12px; border-radius: 6px; pointer-events: none; }
+#crosshair { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%;
+  border: 2px solid #fffc; pointer-events: none; }
+.btn { border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); padding: 6px 12px; border-radius: 6px;
+  cursor: pointer; font: inherit; margin: 6px 0; width: 100%; }

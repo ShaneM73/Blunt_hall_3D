@@ -1,71 +1,120 @@
 {
  "id": "2026-11-04",
- "title": "4 Nov 2026 \u00b7 full building, 4 levels (945 s)",
+ "title": "4 Nov 2026 \u00b7 full building (945 s)",
  "voxel_cm": 3.0,
  "floors": [
   {
-   "z": -8.74,
-   "dwell_s": 160.1,
-   "zmin": -9.04,
-   "zmax": -5.39,
-   "ceiling_z": -5.96,
-   "ceiling": -6.11,
-   "name": "Level -2",
+   "z": -8.72,
+   "dwell_s": 160.8,
+   "zmin": -9.02,
+   "zmax": -5.37,
+   "ceiling_z": -5.99,
+   "ceiling": -6.14,
+   "name": "1st floor",
    "points": [
     "points_f0_0.bin"
    ],
-   "n_points": 2226152,
+   "n_points": 2271766,
    "slam_map": "slam_map_f0.png"
   },
   {
-   "z": -5.09,
-   "dwell_s": 32.2,
-   "zmin": -5.39,
-   "zmax": -1.74,
-   "ceiling_z": -2.36,
-   "ceiling": -2.51,
-   "name": "Level -1",
+   "z": -5.07,
+   "dwell_s": 32.1,
+   "zmin": -5.37,
+   "zmax": -1.72,
+   "ceiling_z": -2.35,
+   "ceiling": -2.5,
+   "name": "2nd floor (stair landing)",
    "points": [
     "points_f1_0.bin"
    ],
-   "n_points": 900520,
+   "n_points": 839595,
    "slam_map": "slam_map_f1.png"
   },
   {
-   "z": -1.44,
-   "dwell_s": 635.4,
-   "zmin": -1.74,
-   "zmax": 1.91,
-   "ceiling_z": 1.29,
-   "ceiling": 1.14,
-   "name": "Main level",
+   "z": -1.42,
+   "dwell_s": 636.0,
+   "zmin": -1.72,
+   "zmax": 1.93,
+   "ceiling_z": 1.01,
+   "ceiling": 0.86,
+   "name": "3rd floor",
    "points": [
     "points_f2_0.bin",
     "points_f2_1.bin"
    ],
-   "n_points": 7056089,
+   "n_points": 6402357,
    "slam_map": "slam_map_f2.png"
   },
   {
-   "z": 2.21,
+   "z": 2.23,
    "dwell_s": 20.1,
-   "zmin": 1.91,
-   "zmax": 7.86,
-   "ceiling_z": 4.69,
-   "ceiling": 4.54,
-   "name": "Level +1",
+   "zmin": 1.93,
+   "zmax": 7.85,
+   "ceiling_z": 4.67,
+   "ceiling": 4.52,
+   "name": "4th floor (stair landing)",
    "points": [
     "points_f3_0.bin"
    ],
-   "n_points": 524954,
+   "n_points": 471148,
    "slam_map": "slam_map_f3.png"
+  },
+  {
+   "name": "Stairwell (all floors)",
+   "box": [
+    4.5,
+    15.5,
+    -1.5,
+    11.0
+   ],
+   "zmin": -9.04,
+   "zmax": 5.5,
+   "floor": 2,
+   "stairs": true,
+   "kind": "area",
+   "z": -1.42,
+   "ceiling": 5.5,
+   "points": [
+    "points_f4_0.bin"
+   ],
+   "n_points": 1601597,
+   "slam_map": "slam_map_f2.png"
+  },
+  {
+   "name": "Entrance (1st floor, outside)",
+   "box": [
+    22.0,
+    46.0,
+    -16.0,
+    8.0
+   ],
+   "zmin": -9.04,
+   "zmax": 4.0,
+   "floor": 0,
+   "range_box": [
+    30.5,
+    40.0,
+    -10.0,
+    3.0,
+    -9.5,
+    -5.0
+   ],
+   "kind": "area",
+   "z": -8.72,
+   "ceiling": 4.0,
+   "points": [
+    "points_f5_0.bin"
+   ],
+   "n_points": 1575348,
+   "slam_map": "slam_map_f0.png"
   }
  ],
  "main_floor": 2,
  "slam_map": {
   "res": 0.05,
   "xmin": -27.0,
-  "ymax": 68.0,
+  "ymax": 66.0,
   "grid_cm": 5,
   "slice": "0.15\u20132.2 m above each floor",
   "note": "Black = walls (occupied over \u22651.2 m of height), gray = furniture and low objects, white = floor seen by the scanner, blue-gray = never observed. Grid 5 cm."
@@ -78,360 +127,415 @@
  "rgb_frac": 1.0,
  "crop_m": 5,
  "focus": [
-  13.0,
-  -7.98,
+  12.99,
+  -7.97,
   0.02
  ],
  "rgb_note": "Cropped to within 5 m of the walking path. Photo exposure and white balance equalized per image before blending; people removed with photo masks and LiDAR free-space carving.",
  "model": {
   "tiles": [
    {
-    "file": "mesh_f1_0_5.ply",
-    "tris": 3533,
-    "floors": [
-     1
-    ]
-   },
-   {
     "file": "mesh_f2_0_5.ply",
-    "tris": 98750,
+    "tris": 84124,
     "floors": [
      2
     ]
    },
    {
     "file": "mesh_f3_0_5.ply",
-    "tris": 7497,
+    "tris": 2169,
     "floors": [
      3
     ]
    },
    {
     "file": "mesh_f1_0_7.ply",
-    "tris": 4851,
+    "tris": 2582,
     "floors": [
      1
     ]
    },
    {
     "file": "mesh_f2_0_7.ply",
-    "tris": 92625,
+    "tris": 86125,
     "floors": [
      2
     ]
    },
    {
     "file": "mesh_f3_0_7.ply",
-    "tris": 13547,
+    "tris": 12047,
     "floors": [
      3
     ]
    },
    {
     "file": "mesh_f2_1_3.ply",
-    "tris": 40875,
+    "tris": 36624,
     "floors": [
      2
     ]
    },
    {
     "file": "mesh_f2_1_4.ply",
-    "tris": 171000,
+    "tris": 158499,
     "floors": [
      2
     ]
    },
    {
-    "file": "mesh_f3_1_4.ply",
-    "tris": 4251,
-    "floors": [
-     3
-    ]
-   },
-   {
     "file": "mesh_f2_1_5.ply",
-    "tris": 104750,
+    "tris": 95499,
     "floors": [
      2
     ]
    },
    {
     "file": "mesh_f2_1_6.ply",
-    "tris": 142750,
+    "tris": 140374,
     "floors": [
      2
     ]
    },
    {
     "file": "mesh_f2_1_7.ply",
-    "tris": 63750,
+    "tris": 57875,
     "floors": [
      2
     ]
    },
    {
     "file": "mesh_f2_2_2.ply",
-    "tris": 122875,
+    "tris": 108500,
     "floors": [
      2
     ]
    },
    {
     "file": "mesh_f3_2_2.ply",
-    "tris": 23381,
+    "tris": 17695,
     "floors": [
      3
     ]
    },
    {
     "file": "mesh_f0_2_3.ply",
-    "tris": 129035,
+    "tris": 117370,
     "floors": [
      0
     ]
    },
    {
     "file": "mesh_f1_2_3.ply",
-    "tris": 135250,
+    "tris": 109000,
     "floors": [
      1
     ]
    },
    {
     "file": "mesh_f2_2_3.ply",
-    "tris": 328499,
+    "tris": 314000,
     "floors": [
      2
     ]
    },
    {
     "file": "mesh_f3_2_3.ply",
-    "tris": 83750,
+    "tris": 66625,
     "floors": [
      3
     ]
    },
    {
+    "file": "mesh_f4_2_3.ply",
+    "tris": 35874,
+    "floors": [
+     4
+    ]
+   },
+   {
     "file": "mesh_f0_2_4.ply",
-    "tris": 231662,
+    "tris": 217223,
     "floors": [
      0
     ]
    },
    {
     "file": "mesh_f1_2_4.ply",
-    "tris": 218606,
+    "tris": 192971,
     "floors": [
      1
     ]
    },
    {
     "file": "mesh_f2_2_4.ply",
-    "tris": 298124,
+    "tris": 295125,
     "floors": [
      2
     ]
    },
    {
     "file": "mesh_f3_2_4.ply",
-    "tris": 123337,
+    "tris": 108944,
     "floors": [
      3
     ]
    },
    {
+    "file": "mesh_f4_2_4.ply",
+    "tris": 214874,
+    "floors": [
+     4
+    ]
+   },
+   {
     "file": "mesh_f0_2_5.ply",
-    "tris": 55125,
+    "tris": 47125,
     "floors": [
      0
     ]
    },
    {
     "file": "mesh_f2_2_5.ply",
-    "tris": 126749,
+    "tris": 117249,
     "floors": [
      2
     ]
    },
    {
     "file": "mesh_f2_2_6.ply",
-    "tris": 6624,
+    "tris": 5500,
     "floors": [
      2
     ]
    },
    {
     "file": "mesh_f0_3_2.ply",
-    "tris": 167336,
+    "tris": 151249,
     "floors": [
      0
     ]
    },
    {
     "file": "mesh_f1_3_2.ply",
-    "tris": 7494,
+    "tris": 5814,
     "floors": [
      1
     ]
    },
    {
     "file": "mesh_f2_3_2.ply",
-    "tris": 239624,
+    "tris": 228374,
     "floors": [
      2
     ]
    },
    {
     "file": "mesh_f3_3_2.ply",
-    "tris": 10843,
+    "tris": 8661,
     "floors": [
      3
     ]
    },
    {
     "file": "mesh_f0_3_3.ply",
-    "tris": 444999,
+    "tris": 445999,
     "floors": [
      0
     ]
    },
    {
     "file": "mesh_f1_3_3.ply",
-    "tris": 109737,
+    "tris": 123619,
     "floors": [
      1
     ]
    },
    {
     "file": "mesh_f2_3_3.ply",
-    "tris": 363999,
+    "tris": 408999,
     "floors": [
      2
     ]
    },
    {
     "file": "mesh_f3_3_3.ply",
-    "tris": 12749,
+    "tris": 43875,
     "floors": [
      3
     ]
    },
    {
+    "file": "mesh_f5_3_3.ply",
+    "tris": 310624,
+    "floors": [
+     5
+    ]
+   },
+   {
     "file": "mesh_f0_3_4.ply",
-    "tris": 107375,
+    "tris": 115750,
     "floors": [
      0
     ]
    },
    {
     "file": "mesh_f1_3_4.ply",
-    "tris": 18412,
+    "tris": 22375,
     "floors": [
      1
     ]
    },
    {
     "file": "mesh_f2_3_4.ply",
-    "tris": 67000,
+    "tris": 73000,
     "floors": [
      2
     ]
    },
    {
     "file": "mesh_f3_3_4.ply",
-    "tris": 32499,
+    "tris": 39485,
     "floors": [
      3
     ]
    },
    {
+    "file": "mesh_f5_3_4.ply",
+    "tris": 41624,
+    "floors": [
+     5
+    ]
+   },
+   {
     "file": "mesh_f2_4_0.ply",
-    "tris": 27249,
+    "tris": 19374,
     "floors": [
      2
     ]
    },
    {
     "file": "mesh_f2_4_1.ply",
-    "tris": 181624,
+    "tris": 144625,
     "floors": [
      2
     ]
    },
    {
-    "file": "mesh_f0_4_2.ply",
-    "tris": 4047,
-    "floors": [
-     0
-    ]
-   },
-   {
     "file": "mesh_f2_4_2.ply",
-    "tris": 318250,
+    "tris": 265875,
     "floors": [
      2
     ]
    },
    {
     "file": "mesh_f0_4_3.ply",
-    "tris": 163624,
+    "tris": 331499,
     "floors": [
      0
     ]
    },
    {
     "file": "mesh_f1_4_3.ply",
-    "tris": 7375,
+    "tris": 14500,
     "floors": [
      1
     ]
    },
    {
     "file": "mesh_f2_4_3.ply",
-    "tris": 128624,
+    "tris": 147624,
     "floors": [
      2
     ]
    },
    {
+    "file": "mesh_f3_4_3.ply",
+    "tris": 12875,
+    "floors": [
+     3
+    ]
+   },
+   {
+    "file": "mesh_f5_4_3.ply",
+    "tris": 388874,
+    "floors": [
+     5
+    ]
+   },
+   {
     "file": "mesh_f0_4_4.ply",
-    "tris": 70250,
+    "tris": 180250,
     "floors": [
      0
     ]
    },
    {
     "file": "mesh_f1_4_4.ply",
-    "tris": 2067,
+    "tris": 4999,
     "floors": [
      1
     ]
    },
    {
-    "file": "mesh_f2_5_0.ply",
-    "tris": 9124,
+    "file": "mesh_f3_4_4.ply",
+    "tris": 5000,
     "floors": [
-     2
+     3
+    ]
+   },
+   {
+    "file": "mesh_f5_4_4.ply",
+    "tris": 180250,
+    "floors": [
+     5
     ]
    },
    {
     "file": "mesh_f2_5_1.ply",
-    "tris": 258999,
+    "tris": 227249,
     "floors": [
      2
     ]
    },
    {
     "file": "mesh_f2_5_2.ply",
-    "tris": 94624,
+    "tris": 83750,
     "floors": [
      2
     ]
    }
   ],
-  "tris": 5479120,
+  "tris": 6670185,
   "short": "Screened Poisson, tiled",
-  "method": "Screened Poisson reconstruction (~9 mm octree cells) of the denoised, people-free 1 cm LiDAR cloud in 23 tiles of 16 m, trimmed to within 3 cm of real points and decimated to 5,479,120 triangles for the web (~2000 per m\u00b2); vertex colors from exposure-equalized photos."
+  "method": "Screened Poisson reconstruction (~9 mm octree cells) of the denoised, people-free 1 cm LiDAR cloud in 22 tiles of 16 m, trimmed to within 3 cm of real points and decimated to 6,670,185 triangles for the web (~2000 per m\u00b2); vertex colors from exposure-equalized photos."
  },
- "loop_closures": 11
+ "loop_closures": 11,
+ "structure": {
+  "files": [
+   {
+    "floor": 0,
+    "file": "model_f0.glb",
+    "mb": 4.9
+   },
+   {
+    "floor": 1,
+    "file": "model_f1.glb",
+    "mb": 4.6
+   },
+   {
+    "floor": 2,
+    "file": "model_f2.glb",
+    "mb": 9.8
+   },
+   {
+    "floor": 3,
+    "file": "model_f3.glb",
+    "mb": 2.9
+   }
+  ],
+  "faces": 4266,
+  "res_cm": 2.0,
+  "note": "Simplified structural model in the style of a SketchUp model: walls, floors and ceilings fitted as flat rectangles on the building axes from the cleaned LiDAR cloud, with door openings, and photo textures projected from 5,745 photos at 2 cm per texel (exposure-equalized, people masked). The central stairwell keeps its measured mesh. Each floor is a glTF 2.0 file that opens in Blender, Unity or Unreal."
+ }
 }

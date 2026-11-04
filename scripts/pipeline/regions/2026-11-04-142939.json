@@ -1,0 +1,35 @@
+[
+ {
+  "name": "Stairwell (all floors)",
+  "box": [
+   4.5,
+   15.5,
+   -1.5,
+   11.0
+  ],
+  "zmin": -9.04,
+  "zmax": 5.5,
+  "floor": 2,
+  "stairs": true
+ },
+ {
+  "name": "Entrance (1st floor, outside)",
+  "box": [
+   22.0,
+   46.0,
+   -16.0,
+   8.0
+  ],
+  "zmin": -9.04,
+  "zmax": 4.0,
+  "floor": 0,
+  "range_box": [
+   30.5,
+   40.0,
+   -10.0,
+   3.0,
+   -9.5,
+   -5.0
+  ]
+ }
+]

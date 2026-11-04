@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { PLYLoader } from 'three/addons/loaders/PLYLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 
 const $ = (s) => document.querySelector(s);
 const viewport = $('#viewport');
@@ -33,7 +35,9 @@ function resize() {
   for (const m of pointMats) m.uniforms.vh.value = h * renderer.getPixelRatio();
 }
 addEventListener('resize', resize); resize();
-renderer.setAnimationLoop(() => { controls.update(); if (!splatActive) renderer.render(scene, camera); });
+const clock = new THREE.Clock();
+let walkRef = null;   // set once the walk module section has run (avoids a temporal-dead-zone error in the first frames)
+renderer.setAnimationLoop(() => { const dt = Math.min(clock.getDelta(), 0.1); if (walkRef?.active) walkRef.step(dt); else controls.update(); if (!splatActive) renderer.render(scene, camera); });
 
 // ---------- loading helpers ----------
 const box = $('#loading');
@@ -64,9 +68,10 @@ async function loadDataset(d) {
   const f = params.get('floor'); floorIx = f === 'all' ? -1 : (f !== null && meta.floors[+f] ? +f : meta.main_floor);
   framed = false;
 }
-const FL = () => floorIx < 0 ? { name: 'All floors', zmin: Math.min(...meta.floors.map(f => f.zmin)), zmax: Math.max(...meta.floors.map(f => f.zmax)),
-  z: meta.floors[0].z, ceiling: Math.max(...meta.floors.map(f => f.ceiling)) } : meta.floors[floorIx];
-const floorsShown = () => floorIx < 0 ? meta.floors.map((_, j) => j) : [floorIx];
+const levels = () => meta.floors.map((f, j) => [f, j]).filter(([f]) => f.kind !== 'area');
+const FL = () => floorIx < 0 ? { name: 'All floors', zmin: Math.min(...levels().map(([f]) => f.zmin)), zmax: Math.max(...levels().map(([f]) => f.zmax)),
+  z: levels()[0][0].z, ceiling: Math.max(...levels().map(([f]) => f.ceiling)) } : meta.floors[floorIx];
+const floorsShown = () => floorIx < 0 ? levels().map(([, j]) => j) : [floorIx];
 
 // ---------- point clouds ----------
 // points_*.bin: 'BHPC' | u32 N | u32 flags(1=rgb) | f32 origin[3] | f32 scale | u16 xyz[N*3] | u8 intensity[N] | u8 rgb[N*3]
@@ -164,6 +169,83 @@ async function loadModel() {
 }
 const setMeshMat = (grp, mat) => grp.traverse(o => { if (o.isMesh) o.material = mat; });
 
+
+// ---------- structural building model (textured glTF, Y-up -> rotate back to Z-up) ----------
+let bvh = null;
+async function loadBVH() { if (!bvh) { bvh = await import('three-mesh-bvh'); THREE.Mesh.prototype.raycast = bvh.acceleratedRaycast; } return bvh; }
+const buildFloors = () => {
+  const s = meta.structure; if (!s) return [];
+  const f = FL(); const want = floorIx < 0 ? levels().map(([, j]) => j) : (f.kind === 'area' ? (f.box && f.zmax - f.zmin > 6 ? levels().map(([, j]) => j) : [f.floor]) : [floorIx]);
+  return s.files.filter(x => want.includes(x.floor));
+};
+async function loadBuild() {
+  const B = await loadBVH(); const files = buildFloors(); const grp = new THREE.Group(); let tris = 0;
+  for (const [i, x] of files.entries()) {
+    const url = base + x.file;
+    if (!cache.has(url)) {
+      const buf = await fetchBuf(url, `Loading building model ${i + 1} / ${files.length}…`);
+      const gltf = await new GLTFLoader().parseAsync(buf, base);
+      const root = gltf.scene; root.rotation.x = Math.PI / 2; root.updateMatrixWorld(true);
+      root.traverse(o => { if (!o.isMesh) return;
+        const m = o.material; o.material = new THREE.MeshBasicMaterial({ map: m.map || null, vertexColors: !m.map && !!o.geometry.attributes.color, side: THREE.DoubleSide });
+        if (o.material.map) o.material.map.colorSpace = THREE.SRGBColorSpace;
+        o.geometry.computeBoundsTree = B.computeBoundsTree; o.geometry.computeBoundsTree(); });
+      cache.set(url, root);
+    }
+    const r = cache.get(url); grp.add(r); r.traverse(o => { if (o.isMesh) tris += o.geometry.index ? o.geometry.index.count / 3 : 0; });
+  }
+  return { group: grp, tris };
+}
+
+// ---------- walk mode: first person, collisions with the model, gravity onto floors / stairs ----------
+const walk = { active: false, pl: null, keys: {}, vz: 0, eye: 1.6, colliders: [] }; walkRef = walk;
+addEventListener('keydown', e => { walk.keys[e.code] = true; });
+addEventListener('keyup', e => { walk.keys[e.code] = false; });
+const _ray = new THREE.Raycaster(); _ray.firstHitOnly = true;
+function hit(origin, dir, far) { _ray.set(origin, dir); _ray.far = far; const h = _ray.intersectObjects(walk.colliders, true); return h.length ? h[0] : null; }
+walk.step = function (dt) {
+  const k = walk.keys, sp = (k.ShiftLeft || k.ShiftRight ? 3.2 : 1.5) * dt;
+  const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.z = 0; fwd.normalize();
+  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 0, 1)).normalize();
+  const mv = new THREE.Vector3();
+  if (k.KeyW || k.ArrowUp) mv.add(fwd); if (k.KeyS || k.ArrowDown) mv.sub(fwd);
+  if (k.KeyD || k.ArrowRight) mv.add(right); if (k.KeyA || k.ArrowLeft) mv.sub(right);
+  const p = camera.position;
+  if (mv.lengthSq() > 0) {
+    mv.normalize();
+    for (const hgt of [-1.2, -0.6, 0.1]) {                       // knee, waist, head: stop 0.3 m before walls
+      const o = p.clone(); o.z += hgt; const h = hit(o, mv, sp + 0.3);
+      if (h) { const n = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld) : null;
+        if (n && Math.abs(n.z) < 0.6 && hgt > -1.3) { n.z = 0; n.normalize(); mv.addScaledVector(n, -mv.dot(n)); } } }
+    p.addScaledVector(mv, sp);
+  }
+  // ground: highest surface below the eye (steps up to 0.45 m)
+  const g = hit(new THREE.Vector3(p.x, p.y, p.z - walk.eye + 0.45), new THREE.Vector3(0, 0, -1), 3);
+  if (g) { const target = g.point.z + walk.eye; if (p.z <= target + 0.02) { p.z += (target - p.z) * Math.min(1, dt * 12); walk.vz = 0; }
+    else { walk.vz -= 9.8 * dt; p.z = Math.max(target, p.z + walk.vz * dt); } }
+};
+function startWalk(model) {
+  if (!walk.pl) {
+    walk.pl = new PointerLockControls(camera, renderer.domElement);
+    walk.pl.addEventListener('unlock', () => { walk.active = false; $('#walkhud').hidden = true; $('#panel').style.display = ''; $('#crosshair')?.remove(); controls.enabled = true;
+      controls.target.copy(camera.position).add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(3)); controls.update(); });
+  }
+  walk.colliders = [model.group];
+  const f = FL(); const zf = f.kind === 'area' ? meta.floors[f.floor].z : f.z;
+  const tj = cache.get(base + 'trajectory.json').data;
+  const on = tj.p.filter(q => q[2] - zf > 0.5 && q[2] - zf < 2.0 && (!f.box || (q[0] > f.box[0] && q[0] < f.box[1] && q[1] > f.box[2] && q[1] < f.box[3])));
+  // start at the straightest stretch of the walk on this floor (largest displacement over the next 8 samples ~ 4 s), looking along it
+  const stairBoxes = meta.floors.filter(g => g.stairs && g.box).map(g => g.box);
+  const notStair = (q) => !stairBoxes.some(b => q[0] > b[0] && q[0] < b[1] && q[1] > b[2] && q[1] < b[3]);
+  const on2 = on.filter(notStair); let best = 0, bi = 0; const P = on2.length > 10 ? on2 : (on.length > 10 ? on : tj.p);
+  for (let i = 0; i + 8 < P.length; i++) { const d = Math.hypot(P[i + 8][0] - P[i][0], P[i + 8][1] - P[i][1]); if (d > best) { best = d; bi = i; } }
+  const q = P[bi], q2 = P[Math.min(bi + 8, P.length - 1)];
+  camera.position.set(q[0], q[1], zf + walk.eye); camera.up.set(0, 0, 1); camera.lookAt(q2[0], q2[1], zf + walk.eye);
+  controls.enabled = false; walk.active = true; walk.vz = 0; $('#walkhud').hidden = false; $('#panel').style.display = 'none';
+  const ch = document.createElement('div'); ch.id = 'crosshair'; viewport.appendChild(ch);
+  walk.pl.lock();
+}
+
 // ---------- gaussian splat ----------
 let splatViewer = null, splatFor = null;
 async function showSplat() {
@@ -191,18 +273,19 @@ function hideSplat() { if (splatViewer) { splatViewer.renderer.domElement.style.
 
 // ---------- SLAM 2D map ----------
 async function drawSlam() {
-  const m = meta.slam_map; const f = meta.floors[Math.max(floorIx, 0)];
+  const m = meta.slam_map; const f = floorIx < 0 ? meta.floors[meta.main_floor] : meta.floors[floorIx];
   const img = new Image(); img.src = base + f.slam_map; await img.decode();
   const tj = (await loadTraj()).data;
   const cv = $('#slamcanvas'); const k = Math.min(1, 1800 / Math.max(img.width, img.height));
   cv.width = img.width * k; cv.height = img.height * k;
   const ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.drawImage(img, 0, 0, cv.width, cv.height);
   const px = (x, y) => [(x - m.xmin) / m.res * k, (m.ymax - y) / m.res * k];
-  const onFloor = (p) => floorIx < 0 || (p[2] - f.z > 0.5 && p[2] - f.z < 2.0);
+  const onFloor = (p) => floorIx < 0 || (p[2] - f.z > 0.5 && p[2] - f.z < 2.0) || (f.box && p[2] > f.zmin && p[2] < f.zmax && p[0] > f.box[0] && p[0] < f.box[1] && p[1] > f.box[2] && p[1] < f.box[3]);
   ctx.lineWidth = 2; ctx.strokeStyle = '#d62728'; ctx.beginPath(); let pen = false;
   tj.p.forEach((p) => { const [u, v] = px(p[0], p[1]); if (!onFloor(p)) { pen = false; return; } pen ? ctx.lineTo(u, v) : ctx.moveTo(u, v); pen = true; }); ctx.stroke();
   const dot = (p, c) => { const [u, v] = px(p[0], p[1]); ctx.fillStyle = c; ctx.beginPath(); ctx.arc(u, v, 6, 0, 7); ctx.fill(); };
   if (onFloor(tj.p[0])) dot(tj.p[0], '#2ca02c'); if (onFloor(tj.p.at(-1))) dot(tj.p.at(-1), '#1f77b4');
+  if (f.box) { const [a, b] = px(f.box[0], f.box[3]), [c2, d] = px(f.box[1], f.box[2]); ctx.strokeStyle = '#ff8c00'; ctx.lineWidth = 3; ctx.setLineDash([8, 6]); ctx.strokeRect(a, b, c2 - a, d - b); ctx.setLineDash([]); }
   const bar = cv.width > 1200 ? 10 : 5; const L = bar / m.res * k; ctx.fillStyle = '#1d1f22'; ctx.fillRect(20, cv.height - 30, L, 6);
   ctx.font = '13px system-ui'; ctx.fillText(`${bar} m`, 20, cv.height - 36);
 }
@@ -215,11 +298,12 @@ let framed = false;
 async function frame() {
   if (framed) return; framed = true;
   const f = FL(); let c = new THREE.Vector3(...(f.focus || meta.focus));
-  if (!f.focus && floorIx >= 0) {
+  if (f.box) c = new THREE.Vector3((f.box[0] + f.box[1]) / 2, (f.box[2] + f.box[3]) / 2, f.zmin + (f.zmax - f.zmin) * 0.35);
+  else if (!f.focus && floorIx >= 0) {
     const tj = (await loadTraj()).data; const on = tj.p.filter(p => p[2] - f.z > 0.5 && p[2] - f.z < 2.0);
     if (on.length) { const med = (k) => on.map(p => p[k]).sort((a, b) => a - b)[on.length >> 1]; c = new THREE.Vector3(med(0), med(1), f.z + 0.5); }
   }
-  const span = meta.floors.length > 1 || meta.path_m > 200 ? 3 : 1;
+  const span = f.box ? Math.max(f.box[1] - f.box[0], f.box[3] - f.box[2], f.zmax - f.zmin) / 9 : (meta.floors.length > 1 || meta.path_m > 200 ? 3 : 1);
   controls.target.copy(c); camera.position.set(c.x - 3.5 * span, c.y - 7 * span, c.z + 6 * span); controls.update();
 }
 function clearWorld() { world.clear(); }
@@ -228,8 +312,10 @@ const clipRange = () => { const f = FL(); return `min="${(f.z + 0.5).toFixed(2)}
 
 function renderPicker() {
   const scanSel = datasets.length > 1 ? `<label>Scan <select id="scanSel">${datasets.map(d => `<option value="${d.id}" ${d.id === ds.id ? 'selected' : ''}>${d.title}</option>`).join('')}</select></label>` : '';
-  const floorSel = meta.floors.length > 1 ? `<label>Floor <select id="floorSel">${meta.floors.map((f, j) => `<option value="${j}" ${j === floorIx ? 'selected' : ''}>${f.name}</option>`).join('')}
-      <option value="-1" ${floorIx < 0 ? 'selected' : ''}>All floors</option></select></label>` : '';
+  const opt = ([f, j]) => `<option value="${j}" ${j === floorIx ? 'selected' : ''}>${f.name}</option>`;
+  const areas = meta.floors.map((f, j) => [f, j]).filter(([f]) => f.kind === 'area');
+  const floorSel = meta.floors.length > 1 ? `<label>View <select id="floorSel"><optgroup label="Floors">${levels().map(opt).join('')}<option value="-1" ${floorIx < 0 ? 'selected' : ''}>All floors</option></optgroup>
+      ${areas.length ? `<optgroup label="Areas">${areas.map(opt).join('')}</optgroup>` : ''}</select></label>` : '';
   pick.innerHTML = scanSel + floorSel; pick.hidden = !(scanSel || floorSel);
   $('#scanSel') && ($('#scanSel').onchange = async (e) => { params.delete('floor'); await loadDataset(datasets.find(d => d.id === e.target.value)); renderPicker(); show(current); });
   $('#floorSel') && ($('#floorSel').onchange = (e) => { floorIx = +e.target.value; framed = false; show(current); });
@@ -245,7 +331,7 @@ function cloudPanel(c, t, rgb) {
     ${rgb ? '<label>Color boost <input id="boost" type="range" min="1" max="2" step="0.05" value="1.3"></label>' : '<label>Intensity gain <input id="gain" type="range" min="0.5" max="4" step="0.1" value="1.5"></label>'}
     <label>Cut ceiling <input id="clip" type="range" ${clipRange()}></label>
     <label>Trajectory <input id="trj" type="checkbox" ${rgb ? '' : 'checked'}></label>
-    <div id="leg"></div>` + (rgb ? '<p class="note">For photo-realistic texture, open the Gaussian splat tab — points ${meta.voxel_cm} cm apart cannot carry fine photo detail.</p>' : '');
+    <div id="leg"></div>` + (rgb ? `<p class="note">For photo-realistic texture, open the Gaussian splat or Building model tab — points ${meta.voxel_cm} cm apart cannot carry fine photo detail.</p>` : '');
   $('#psize').oninput = (e) => { u.size.value = +e.target.value; };
   $('#clip').oninput = (e) => { u.clipTop.value = +e.target.value; };
   $('#gain') && ($('#gain').oninput = (e) => { u.gain.value = +e.target.value; });
@@ -290,6 +376,23 @@ const views = {
     $('#trj').onchange = (e) => { t.group.visible = e.target.checked; };
     statRows([['Triangles', fmt(m.tris)], ['Method', meta.model.short]]);
   },
+  async build() {
+    if (!meta.structure) { clearWorld(); info.innerHTML = '<h2>Building model</h2><p class="note">The structural building model for this scan is not built yet.</p>'; ctl.innerHTML = ''; statRows([]); return; }
+    const m = await loadBuild(); const t = await loadTraj(); const f = FL();
+    clearWorld(); world.add(m.group); world.add(t.group); t.group.visible = false; frame();
+    info.innerHTML = `<h2>Building model</h2><p>${meta.structure.note}</p>`;
+    ctl.innerHTML = `<button class="btn" id="walkBtn">Walk in the building</button>
+      <p class="note">Walk mode: WASD / arrow keys to move, Shift to run, mouse to look, Esc to exit. Desktop browsers only.</p>
+      <label>Cut ceiling <input id="bclip" type="range" ${clipRange()}></label>
+      <label>Trajectory <input id="trj" type="checkbox"></label>
+      <p><a href="${base}${(buildFloors()[0] || {}).file || ''}" download>Download this floor (.glb)</a> · glTF 2.0, Y-up, metres</p>`;
+    const top = new THREE.Plane(new THREE.Vector3(0, 0, -1), CUT() + 0.5);
+    m.group.traverse(o => { if (o.isMesh) o.material.clippingPlanes = [top]; });
+    $('#bclip').value = CUT() + 0.5; $('#bclip').oninput = (e) => { top.constant = +e.target.value; };
+    $('#trj').onchange = (e) => { t.group.visible = e.target.checked; };
+    $('#walkBtn').onclick = () => { top.constant = 99; startWalk(m); };
+    statRows([['Faces', fmt(meta.structure.faces)], ['Texture', `${meta.structure.res_cm} cm / texel`], ['Triangles shown', fmt(Math.round(m.tris))]]);
+  },
   async slam() {
     await drawSlam();
     info.innerHTML = `<h2>SLAM map</h2><p>Top-down occupancy map: wall hits in a horizontal slice ${meta.slam_map.slice}, with the SLAM-optimized walking path on this floor (green = start, blue = end).</p>`;
@@ -314,6 +417,7 @@ renderer.domElement.addEventListener('dblclick', (e) => {
   const hit = ray.intersectObjects(world.children, true)[0]; if (hit) controls.target.copy(hit.point);
 });
 
+window.__bh = { camera, world, controls, scene, renderer, get walk() { return walkRef; } };
 let current = 'lidar';
 async function show(name) {
   current = name;

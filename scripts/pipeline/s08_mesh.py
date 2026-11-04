@@ -3,14 +3,19 @@ Tiles of TILE m in X/Y (all heights) with 1 m overlap; Poisson depth chosen for 
 from real points removed, small islands dropped, each tile cut back to its own footprint, decimated to TRI_PER_M2
 triangles per m^2 of covered area, vertex colors from the 6 nearest points.
 Out: mesh/tiles/tile_<i>_<j>.npz (v, f, c) and mesh/tiles.json"""
-import os, json
+import os, sys, json
 import numpy as np, open3d as o3d
 from scipy.spatial import cKDTree
 from concurrent.futures import ProcessPoolExecutor
-from common import W, log
+import subprocess
+from common import W, log, removed_mask
 
+RBOX_XY = [r['box'] for r in (json.load(open(W('regions.json'))) if os.path.exists(W('regions.json')) else []) if 'range_box' in r]
 TILE = float(os.environ.get('BH_TILE', 16)); OV = 1.0; TRI_PER_M2 = float(os.environ.get('BH_TRI_M2', 6000))
-d = np.load(W('color', 'hq_colored.npz')); rm = np.load(W('clouds', 'person_rm.npy')); k = ~rm & d['has']
+cf = W('clouds', 'clutter_rm.npy')
+if __name__ == '__main__' and (not os.path.exists(cf) or os.path.getmtime(cf) < os.path.getmtime(W('color', 'hq_colored.npz'))):
+    subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 's07b_clean.py')], check=True)
+d = np.load(W('color', 'hq_colored.npz')); rm = removed_mask(); k = ~rm & d['has']
 P = d['xyz'][k]; Nr = d['nrm'][k]; C = d['rgb'][k]; log('mesh input points', len(P))
 lo = np.floor(P[:, :2].min(0) / TILE) * TILE
 ij = np.floor((P[:, :2] - lo) / TILE).astype(int)
@@ -25,8 +30,13 @@ def run(t):
     ext = float(np.ptp(Q, 0).max()); depth = int(np.clip(np.ceil(np.log2(ext * 1.05 / 0.009)), 8, 12))
     pc = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(Q)); pc.normals = o3d.utility.Vector3dVector(Qn)
     mesh, _ = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pc, depth=depth, n_threads=8, scale=1.05)
-    tree = cKDTree(Q); dist, _ = tree.query(np.asarray(mesh.vertices), workers=8)
-    mesh.remove_vertices_by_mask(dist > 0.03); mesh.remove_unreferenced_vertices()
+    tree = cKDTree(Q); dist, jn = tree.query(np.asarray(mesh.vertices), workers=8)
+    sp = tree.query(Q, k=7, workers=8)[0][:, 6]                    # local point spacing (6th neighbour)
+    lim = np.full(len(dist), 0.03)                                     # 3 cm; wider only on sparse surfaces in range boxes
+    Vv = np.asarray(mesh.vertices)
+    for b in RBOX_XY:
+        inb = (Vv[:, 0] >= b[0]) & (Vv[:, 0] < b[1]) & (Vv[:, 1] >= b[2]) & (Vv[:, 1] < b[3]); lim[inb] = np.maximum(0.03, np.minimum(1.5 * sp[jn[inb]], 0.25))
+    mesh.remove_vertices_by_mask(dist > lim); mesh.remove_unreferenced_vertices()
     cl, n, _ = mesh.cluster_connected_triangles(); cl = np.asarray(cl); n = np.asarray(n)
     mesh.remove_triangles_by_mask(n[cl] < 3000); mesh.remove_unreferenced_vertices()
     V = np.asarray(mesh.vertices); F = np.asarray(mesh.triangles); cen = V[F].mean(1)
