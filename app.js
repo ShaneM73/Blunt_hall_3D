@@ -28,6 +28,7 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', setBg);
 function resize() {
   const w = viewport.clientWidth, h = viewport.clientHeight;
   renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+  if (window.__cloudMat) window.__cloudMat.uniforms.vh.value = h * renderer.getPixelRatio();
 }
 addEventListener('resize', resize); resize();
 renderer.setAnimationLoop(() => { controls.update(); if (!splatActive) renderer.render(scene, camera); });
@@ -69,11 +70,11 @@ async function loadCloud() {
   if (rgb) g.setAttribute('rgb', new THREE.BufferAttribute(rgb, 3, true));
   g.computeBoundingBox();
   const mat = new THREE.ShaderMaterial({
-    uniforms: { mode: { value: 0 }, size: { value: 2.0 }, zmin: { value: meta.floor_z }, zmax: { value: meta.ceiling_z },
-                clipTop: { value: 99 }, gain: { value: 1.5 } },
+    uniforms: { mode: { value: 0 }, size: { value: 1.6 }, vh: { value: 800 }, spacing: { value: (meta.voxel_cm || 2) / 100 }, zmin: { value: meta.floor_z }, zmax: { value: meta.ceiling_z },
+                clipTop: { value: 99 }, gain: { value: 1.5 }, boost: { value: 1.3 } },
     vertexShader: `
       attribute float intensity; attribute vec3 rgb;
-      uniform int mode; uniform float size, zmin, zmax, gain, clipTop;
+      uniform int mode; uniform float size, zmin, zmax, gain, clipTop, boost, vh, spacing;
       varying vec3 vCol; varying float vClip;
       vec3 turbo(float x){ x=clamp(x,0.,1.);
         vec4 kr=vec4(.13572138,4.61539260,-42.66032258,132.13108234), kg=vec4(.09140261,2.19418839,4.84296658,-14.18503333), kb=vec4(.10667330,12.64194608,-60.58204836,110.36276771);
@@ -83,15 +84,16 @@ async function loadCloud() {
       void main(){
         vClip = position.z > clipTop ? 1. : 0.;
         if (mode==0) { float v=clamp(intensity*gain,0.,1.); vCol=vec3(v); }
-        else if (mode==1) vCol=rgb;
+        else if (mode==1) { vec3 c=(rgb-0.5)*(1.0+0.6*(boost-1.0))+0.5; float l=dot(c,vec3(.299,.587,.114)); vCol=clamp(mix(vec3(l),c,boost*boost),0.,1.); }
         else vCol=turbo((position.z-zmin)/(zmax-zmin));
         vec4 mv=modelViewMatrix*vec4(position,1.);
-        gl_PointSize = size * 20.0 / max(-mv.z, 0.5);
+        gl_PointSize = clamp(size * spacing * projectionMatrix[1][1] * vh * 0.5 / max(-mv.z, 0.05), 1.0, 14.0);
         gl_Position = projectionMatrix*mv; }`,
     fragmentShader: `varying vec3 vCol; varying float vClip;
       void main(){ if (vClip>0.5) discard; vec2 c=gl_PointCoord-.5; if(dot(c,c)>.25) discard; gl_FragColor=vec4(vCol,1.); }`,
   });
   cloud = { points: new THREE.Points(g, mat), N, hasRGB: !!rgb };
+  mat.uniforms.vh.value = viewport.clientHeight * renderer.getPixelRatio(); window.__cloudMat = mat;
   return cloud;
 }
 
@@ -124,7 +126,8 @@ async function loadModel() {
   const hasColor = !!geom.getAttribute('color');
   const mat = new THREE.MeshStandardMaterial({ vertexColors: hasColor, color: hasColor ? 0xffffff : 0xcfcac0,
     roughness: 0.9, metalness: 0, side: THREE.DoubleSide });
-  modelObj = { mesh: new THREE.Mesh(geom, mat), tris: geom.index ? geom.index.count / 3 : geom.attributes.position.count / 3, hasColor };
+  const unlit = new THREE.MeshBasicMaterial({ vertexColors: hasColor, side: THREE.DoubleSide });
+  modelObj = { mesh: new THREE.Mesh(geom, hasColor ? unlit : mat), lit: mat, unlit, tris: geom.index ? geom.index.count / 3 : geom.attributes.position.count / 3, hasColor };
   return modelObj;
 }
 
@@ -173,10 +176,11 @@ let framed = false;
 function frame(obj) {
   if (framed) return; framed = true;
   const c = new THREE.Vector3(...meta.focus); controls.target.copy(c);
-  camera.position.set(c.x - 6, c.y - 10, c.z + 9); controls.update();
+  camera.position.set(c.x - 3.5, c.y - 7, c.z + 6); controls.update();
 }
 function clearWorld() { world.clear(); }
 
+const CUT = +(meta.ceiling_z - 0.15).toFixed(2);   // default: ceiling removed so the interior is visible
 const views = {
   async lidar() {
     const c = await loadCloud(); const t = await loadTraj();
@@ -185,9 +189,9 @@ const views = {
     info.innerHTML = `<h2>LiDAR points</h2><p>${fmt(meta.n_raw)} raw returns from the Hesai 16-beam scanner, registered with the on-device SLAM trajectory and thinned to a ${meta.voxel_cm} cm voxel grid.</p>`;
     ctl.innerHTML = `
       <label>Color <select id="cmode"><option value="0">Intensity</option><option value="2">Height</option></select></label>
-      <label>Point size <input id="psize" type="range" min="0.5" max="6" step="0.1" value="2"></label>
+      <label>Point size <input id="psize" type="range" min="0.6" max="4" step="0.1" value="1.6"></label>
       <label>Intensity gain <input id="gain" type="range" min="0.5" max="4" step="0.1" value="1.5"></label>
-      <label>Cut ceiling <input id="clip" type="range" min="${meta.floor_z+0.5}" max="${meta.ceiling_z+3}" step="0.05" value="${meta.ceiling_z+3}"></label>
+      <label>Cut ceiling <input id="clip" type="range" min="${meta.floor_z+0.5}" max="${meta.ceiling_z+3}" step="0.05" value="${CUT}"></label>
       <label>Trajectory <input id="trj" type="checkbox" checked></label>
       <div id="leg"></div>`;
     bindCloudControls(c, t);
@@ -201,26 +205,30 @@ const views = {
       ${c.hasRGB ? '' : '<p class="note">RGB not available in this build — showing intensity.</p>'}
       <p class="note">${meta.rgb_note || ''}</p>`;
     ctl.innerHTML = `
-      <label>Point size <input id="psize" type="range" min="0.5" max="6" step="0.1" value="2"></label>
-      <label>Cut ceiling <input id="clip" type="range" min="${meta.floor_z+0.5}" max="${meta.ceiling_z+3}" step="0.05" value="${meta.ceiling_z+3}"></label>
-      <label>Trajectory <input id="trj" type="checkbox"></label>`;
+      <label>Point size <input id="psize" type="range" min="0.6" max="4" step="0.1" value="1.6"></label>
+      <label>Color boost <input id="boost" type="range" min="1" max="2" step="0.05" value="1.3"></label>
+      <label>Cut ceiling <input id="clip" type="range" min="${meta.floor_z+0.5}" max="${meta.ceiling_z+3}" step="0.05" value="${CUT}"></label>
+      <label>Trajectory <input id="trj" type="checkbox"></label>
+      <p class="note">For photo-realistic texture, open the Gaussian splat tab — points 1.5 cm apart cannot carry fine photo detail.</p>`;
     bindCloudControls(c, t); t.group.visible = false;
     statRows([['Points shown', fmt(c.N)], ['Colored', meta.rgb_frac ? `${(100*meta.rgb_frac).toFixed(1)} %` : '—'], ['Cameras', '3 × 5 MP fisheye']]);
   },
   async model() {
     const m = await loadModel(); const t = await loadTraj();
     clearWorld(); world.add(m.mesh); world.add(t.group); t.group.visible = false; frame();
-    info.innerHTML = `<h2>Preliminary 3D model</h2><p>${meta.model.method}</p><p class="note">Preliminary: holes where the scanner never saw a surface, and some blobs at open doorways.</p>`;
+    info.innerHTML = `<h2>3D model</h2><p>${meta.model.method}</p><p class="note">Covers the well-scanned zone only; areas seen just through doorways were left out rather than shown as fragments.</p>`;
     ctl.innerHTML = `
-      <label>Shading <select id="shade"><option value="c">${m.hasColor ? 'Vertex color' : 'Gray'}</option><option value="g">Gray</option><option value="w">Wireframe</option></select></label>
-      <label>Cut ceiling <input id="mclip" type="range" min="${meta.floor_z+0.5}" max="${meta.ceiling_z+3}" step="0.05" value="${meta.ceiling_z+3}"></label>
+      <label>Shading <select id="shade">${m.hasColor ? '<option value="p">Photo color (unlit)</option><option value="c">Photo color + shading</option>' : ''}<option value="g">Gray (shaded)</option><option value="w">Wireframe</option></select></label>
+      <label>Cut ceiling <input id="mclip" type="range" min="${meta.floor_z+0.5}" max="${meta.ceiling_z+3}" step="0.05" value="${CUT}"></label>
       <label>Trajectory <input id="trj" type="checkbox"></label>`;
     renderer.localClippingEnabled = true;
-    const plane = new THREE.Plane(new THREE.Vector3(0, 0, -1), meta.ceiling_z + 3);
-    m.mesh.material.clippingPlanes = [plane];
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, -1), CUT);
+    m.lit.clippingPlanes = [plane]; m.unlit.clippingPlanes = [plane];
     $('#mclip').oninput = (e) => { plane.constant = +e.target.value; };
-    $('#shade').onchange = (e) => { const v = e.target.value; const mat = m.mesh.material;
-      mat.wireframe = v === 'w'; mat.vertexColors = v === 'c' && m.hasColor; mat.color.set(mat.vertexColors ? 0xffffff : 0xcfcac0); mat.needsUpdate = true; };
+    const setShade = (v) => { if (v === 'p') { m.mesh.material = m.unlit; return; }
+      const mat = m.lit; m.mesh.material = mat; mat.wireframe = v === 'w'; mat.vertexColors = v === 'c' && m.hasColor;
+      mat.color.set(mat.vertexColors ? 0xffffff : 0xcfcac0); mat.needsUpdate = true; };
+    $('#shade').onchange = (e) => setShade(e.target.value); setShade(m.hasColor ? 'p' : 'g');
     $('#trj').onchange = (e) => { t.group.visible = e.target.checked; };
     statRows([['Triangles', fmt(m.tris)], ['Method', meta.model.short]]);
   },
@@ -245,6 +253,8 @@ function bindCloudControls(c, t) {
   $('#psize').oninput = (e) => { u.size.value = +e.target.value; };
   $('#clip').oninput = (e) => { u.clipTop.value = +e.target.value; };
   $('#gain') && ($('#gain').oninput = (e) => { u.gain.value = +e.target.value; });
+  $('#boost') && ($('#boost').oninput = (e) => { u.boost.value = +e.target.value; });
+  u.clipTop.value = +$('#clip').value; u.size.value = +$('#psize').value;
   $('#trj').onchange = (e) => { t.group.visible = e.target.checked; };
   t.group.visible = $('#trj').checked;
   const cm = $('#cmode');

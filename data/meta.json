@@ -3,17 +3,17 @@
  "n_frames": 2454,
  "duration_s": 245.3,
  "path_m": 66.8,
- "voxel_cm": 2,
+ "voxel_cm": 1.5,
  "n_images": 1487,
  "floor_z": -1.01,
  "ceiling_z": 1.41,
  "focus": [
-  -0.23,
-  -1.92,
-  0.48
+  -0.38999998569488525,
+  -1.4500000476837158,
+  -0.5
  ],
- "rgb_frac": 0.799,
- "rgb_note": "People were removed twice: detected in the photos (Mask R-CNN) and carved out of the LiDAR cloud wherever laser beams later passed through them. A few faint smudges remain.",
+ "rgb_frac": 1.0,
+ "rgb_note": "Cropped to the well-scanned zone (within 5 m of the walking path). Photo exposure and white balance were equalized per image before blending; people were removed with photo masks and LiDAR free-space carving.",
  "loop_closures": 1,
  "slam_map": {
   "image": "data/slam_map.png",
@@ -26,13 +26,13 @@
  },
  "model": {
   "file": "data/model.ply",
-  "short": "Screened Poisson",
-  "method": "Screened Poisson surface reconstruction (octree depth 11) of the people-free 2 cm LiDAR cloud, trimmed to within 5 cm of real points, decimated to 699,999 triangles and colored from the photo-colored points."
+  "short": "Screened Poisson (d12)",
+  "method": "Screened Poisson reconstruction (octree depth 12, ~6 mm) of the denoised, people-free 1 cm LiDAR cloud, trimmed to within 3 cm of real points and decimated to 1,800,000 triangles; vertex colors from exposure-equalized photos."
  },
  "n_transient": 334826,
  "splat": {
   "file": "data/scene.splat",
-  "n": 459925,
+  "n": 663556,
   "views": 1487,
   "cam_pos": [
    -1.5,
@@ -44,6 +44,7 @@
    -3.6,
    0.0
   ],
-  "note": "3D Gaussian Splatting (gsplat) trained on 1487 undistorted fisheye photos with poses from the SLAM trajectory, initialized from the colored LiDAR points. People were masked out of the photos, and the splat depth was supervised by the people-free (carved) LiDAR cloud. Best viewed from inside the corridors near the walking path."
- }
+  "note": "3D Gaussian Splatting (gsplat) trained on 1,487 undistorted fisheye photos at 1.5x resolution (1458x1944), with SLAM-refined poses. It was initialized from the 1 cm HQ LiDAR cloud near the path plus a 2 cm cloud farther out. People were masked out of the photos, and the splat depth was supervised by the people-free (carved) LiDAR cloud. Best viewed from inside the corridors near the walking path."
+ },
+ "crop_m": 5
 }
