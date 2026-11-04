@@ -1,0 +1,4 @@
+{ "datasets": [
+  { "id": "2026-10-29", "title": "29 Oct 2026 · corridor segment (245 s)", "subtitle": "Indoor handheld LiDAR · TrueView GO · 29 Oct 2026" },
+  { "id": "2026-11-04", "title": "4 Nov 2026 · full building, 4 levels (945 s)", "subtitle": "Indoor handheld LiDAR · TrueView GO · 4 Nov 2026", "default": true }
+] }
