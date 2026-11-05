@@ -17,7 +17,7 @@ Use the **Scan** and **View** selectors in the side panel to switch between scan
 | Colored points | Colored from 5,745 photos, with exposure and white balance equalized per photo (±13 %) | 1,487 photos (±9 %) |
 | SLAM map | One floor plan per level, with the walk on that floor | One floor plan |
 | 3D model | Tiled screened-Poisson mesh of the cleaned cloud: 11.1 M triangles at full resolution, 6.7 M on the web, split by floor and area | 1.8 M triangles |
-| Building model | SketchUp-style structural model: 4,266 flat wall, floor and ceiling rectangles with door openings, photo-textured at 2 cm per texel. The stairwell keeps its measured mesh. **Walk in the building** (first person, WASD). One glTF 2.0 file per floor, ready for Blender, Unity or Unreal | — |
+| Building model | SketchUp-style structural model: 4,266 flat wall, floor and ceiling rectangles with door openings, photo-textured at 2 cm per texel. The stairwell keeps its measured mesh. **Walk in the building** (first person, WASD). One glTF 2.0 file per floor, ready for Blender, Unity or Unreal. **Blender scenes** with 159 furniture objects (SAM 3 + SAM 3D) are in the [release](https://github.com/ShaneM73/Blunt_hall_3D/releases/tag/blender-2026-11-04) | — |
 | Gaussian splat | Training (added in a follow-up) | 664 k Gaussians |
 
 No build step is needed: the site is static HTML + three.js. To preview it locally, run `python3 -m http.server` and open `http://localhost:8000`.
@@ -82,9 +82,32 @@ python s11_splat_export.py 2026-11-04 && python s12_structure.py && python s13_t
 
 The robust wall noise is 0.5–2 cm (0.64 cm median on 4 Nov), which is the Hesai sensor's level.
 
+### Furniture objects and Blender model (`scripts/pipeline/objects/`)
+
+Three Python environments: the pipeline venv (`env.sh`), the SAM 3 conda env, and the [SAM 3D Objects](https://github.com/facebookresearch/sam-3d-objects) conda env (its gated checkpoints need Hugging Face access). Blender 4.2 LTS runs headless.
+
+```bash
+cd ~/sam3 && BH_WORK=... BH_SHARD=0 BH_NSHARD=2 ~/.conda/envs/sam3/bin/python .../objects/s14_sam3_detect.py   # one shard per GPU
+python objects/s15_lift_objects.py && python objects/s16_object_meshes.py && python objects/s18_pick_views.py
+cd ~/apps/sam-3d-objects && BH_WORK=... ~/.conda/envs/sam3d-objects/bin/python .../objects/s19_sam3d.py
+python objects/s20_fit_sam3d.py
+blender -b -P objects/s17_blender.py -- data/2026-11-04 $BH_WORK/objects/meshes $BH_WORK/blender
+```
+
+| Stage | What it does |
+|---|---|
+| `s14_sam3_detect` | SAM 3 text prompts (chair, table, desk, sofa, cabinet, shelf, trash can, monitor, bench, stool, …) on every undistorted photo; one index mask + detections per photo |
+| `s15_lift_objects` | Projects the clean LiDAR points into each photo (z-buffered) and votes on labels (≥ 35 % of ≥ 3 views); drops points on structural faces; connected components on a 5 cm grid → 162 instances |
+| `s16_object_meshes` | Cuts each instance's triangles out of the measured mesh (vertex colours) |
+| `s18_pick_views` | Picks, per object, the photo where it is largest and fully covered by one SAM 3 detection of its label |
+| `s19_sam3d` | SAM 3D Objects: a complete mesh from that photo + mask (15–40 s each on an A100); vertex colours from its own Gaussians |
+| `s20_fit_sam3d` | Places the SAM 3D mesh on the LiDAR: yaw + uniform scale + position, bottom on the floor, 108 starts refined by trimmed ICP. Accepted when ≥ 60 % of the LiDAR points lie within 3 cm (96 of 158 on 4 Nov) |
+| `s17_blender` | One `.blend` per floor + one for the whole building: collections Structure (textured glb), Stairs, Furniture (by type, SAM 3D mesh or LiDAR cut-out, property `source`), corridor camera, Cycles settings and an `unlit` scene switch. Published as a [GitHub release](https://github.com/ShaneM73/Blunt_hall_3D/releases/tag/blender-2026-11-04) |
+
 ## Known limitations
 
 - Coordinates are local SLAM metres for each scan (no GNSS indoors), so the two scans are not in a common frame. Z is up.
 - People who walked alongside the operator were removed (photo masks + LiDAR carving), but faint smudges and one person standing still near the stairs remain.
+- Furniture: SAM 3D predicts the sides the photo didn't show, so backs are plausible rather than measured. Objects whose fit was poor (often several pieces merged into one instance, or partly hidden) keep the rough LiDAR cut-out. Glass walls are flat textured panels in the building model.
 - The Gaussian splat looks best from viewpoints near the walking path. Far from it (or in corners the cameras barely saw) it becomes blurry or hazy.
 - The points and mesh cover only areas within 5 m of the walking path. Rooms seen only through doorways were left out. On 4 Nov, Level −1 and Level +1 were reached only by the stairs, so they are partial.

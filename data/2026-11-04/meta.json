@@ -658,5 +658,44 @@
    -0.37
   ],
   "note": "3D Gaussian Splatting (gsplat) trained on 5,745 undistorted fisheye photos at 1458\u00d71944 with SLAM-refined poses, initialized from the people-free 1 cm LiDAR cloud near the path plus a 2 cm cloud farther out. People were masked out of the photos and the splat depth was supervised by the carved LiDAR cloud. Each floor is a separate file; best viewed from inside the corridors near the walking path."
+ },
+ "blender": {
+  "release": "https://github.com/ShaneM73/Blunt_hall_3D/releases/tag/blender-2026-11-04",
+  "base": "https://github.com/ShaneM73/Blunt_hall_3D/releases/download/blender-2026-11-04/",
+  "files": [
+   {
+    "floor": 0,
+    "file": "blunt_hall_f0.blend",
+    "mb": 13.2,
+    "furniture": 19
+   },
+   {
+    "floor": 1,
+    "file": "blunt_hall_f1.blend",
+    "mb": 7.6,
+    "furniture": 0
+   },
+   {
+    "floor": 2,
+    "file": "blunt_hall_f2.blend",
+    "mb": 46.8,
+    "furniture": 140
+   },
+   {
+    "floor": 3,
+    "file": "blunt_hall_f3.blend",
+    "mb": 4.8,
+    "furniture": 0
+   },
+   {
+    "floor": "all",
+    "file": "blunt_hall_all.blend",
+    "mb": 72.1,
+    "furniture": 159
+   }
+  ],
+  "objects": 159,
+  "sam3d": 96,
+  "note": "Blender 4.2 scene per floor (and one for the whole building) with collections Structure, Stairs and Furniture. Furniture: 159 items found with SAM 3 on the photos; 96 are complete SAM 3D Objects meshes fitted to the LiDAR, the rest are measured LiDAR cut-outs. Open and press F12 to render (corridor camera, unlit photo colours)."
  }
 }
