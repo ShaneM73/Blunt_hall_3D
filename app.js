@@ -178,6 +178,14 @@ const buildFloors = () => {
   const f = FL(); const want = floorIx < 0 ? levels().map(([, j]) => j) : (f.kind === 'area' ? (f.box && f.zmax - f.zmin > 6 ? levels().map(([, j]) => j) : [f.floor]) : [floorIx]);
   return s.files.filter(x => want.includes(x.floor));
 };
+// Blender scene files live in a GitHub release (too large for the repo); links for the shown floor + the whole building
+const blenderLinks = () => {
+  const b = meta.blender; if (!b) return '';
+  const fl = buildFloors().map(x => x.floor), one = b.files.filter(x => fl.includes(x.floor)), all = b.files.find(x => x.floor === 'all');
+  const a = x => `<a href="${b.base}${x.file}">${x.floor === 'all' ? 'whole building' : 'this floor'} (.blend, ${x.mb} MB)</a>`;
+  return `<p>Blender: ${[...(one.length === 1 ? one : []), ...(all ? [all] : [])].map(a).join(' · ')}</p>
+    <p class="note">${b.note} <a href="${b.release}">Release notes</a></p>`;
+};
 async function loadBuild() {
   const B = await loadBVH(); const files = buildFloors(); const grp = new THREE.Group(); let tris = 0;
   for (const [i, x] of files.entries()) {
@@ -385,7 +393,7 @@ const views = {
       <p class="note">Walk mode: WASD / arrow keys to move, Shift to run, mouse to look, Esc to exit. Desktop browsers only.</p>
       <label>Cut ceiling <input id="bclip" type="range" ${clipRange()}></label>
       <label>Trajectory <input id="trj" type="checkbox"></label>
-      <p><a href="${base}${(buildFloors()[0] || {}).file || ''}" download>Download this floor (.glb)</a> · glTF 2.0, Y-up, metres</p>`;
+      <p><a href="${base}${(buildFloors()[0] || {}).file || ''}" download>Download this floor (.glb)</a> · glTF 2.0, Y-up, metres</p>${blenderLinks()}`;
     const top = new THREE.Plane(new THREE.Vector3(0, 0, -1), CUT() + 0.5);
     m.group.traverse(o => { if (o.isMesh) o.material.clippingPlanes = [top]; });
     $('#bclip').value = CUT() + 0.5; $('#bclip').oninput = (e) => { top.constant = +e.target.value; };
