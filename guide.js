@@ -268,13 +268,26 @@ function hudUpdate(d, t, k) {
   $('hud-d').textContent = `${Math.round(d)} / ${dOf(0, n)} m`; $('hud-t').textContent = `${fmtT(t)} / ${fmtT(tOf(0, n))}`;
   $('hud-bar').style.width = `${(100 * t / cumT[n]).toFixed(1)}%`;
 }
-function hudReport(k) {             // stage k finished: same numbers as its panel entry
-  const s = steps[k], li = document.createElement('li');
+function hudReport(k) {             // stage k finished: same numbers as its panel entry; flashes in the walker's panel
+  const s = steps[k], li = document.createElement('li'); li.className = 'flash'; li.dataset.t = performance.now();
   li.innerHTML = `<b>${k}</b> ${s.title}<span>${dOf(s.a, s.b)} m · ${fmtT(tOf(s.a, s.b))}</span>`; $('hud-log').appendChild(li);
+}
+const hudAt = new THREE.Vector3();
+function placeHud() {               // the info panel rides beside the walker (or the end of the route once arrived)
+  const el = $('hud'); if (el.hidden) return;
+  const now = performance.now();
+  el.querySelectorAll('.hud-log li.flash').forEach((e) => { if (now - e.dataset.t > 3000) e.classList.remove('flash'); });
+  const p = walker.visible ? walker.position : (() => { const q = D.route[D.route.length - 1]; return hudAt.set(q[0], q[1], q[2] + 0.4); })();
+  tmp.copy(p); root.localToWorld(tmp); tmp.project(camera);
+  const W = stage.clientWidth, H = stage.clientHeight, w = el.offsetWidth, h = el.offsetHeight;
+  let x = (tmp.x + 1) / 2 * W, y = (1 - tmp.y) / 2 * H, flip = x + 26 + w > W - 8;
+  x = flip ? x - 26 - w : x + 26; x = Math.max(8, Math.min(W - w - 8, x)); y = Math.max(60, Math.min(H - h - 8, y - h / 2));
+  el.classList.toggle('flip', flip); el.style.visibility = tmp.z > 1 ? 'hidden' : 'visible';
+  el.style.transform = `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px)`;
 }
 function startWalk() {
   playing = true; simT = 0; walkStage = 1; walker.visible = true; markStep(1);
-  $('hud').hidden = false; $('hud-log').innerHTML = ''; $('hud-speed').textContent = `${SPEEDUP}× speed`; hudUpdate(0, 0, 1);
+  $('hud').hidden = false; $('hud').classList.remove('arrived'); $('hud-log').innerHTML = ''; $('hud-speed').textContent = `${SPEEDUP}× speed`; hudUpdate(0, 0, 1);
   $('play').setAttribute('aria-pressed', 'true'); $('play').textContent = '■ Stop';
 }
 function stopWalk() { playing = false; if (walker) walker.visible = false; $('play').setAttribute('aria-pressed', 'false'); $('play').textContent = '▶ Walk the route'; }
@@ -287,6 +300,7 @@ function walkStep(dt) {
   if (simT >= cumT[n]) {            // arrived: final report stays on screen
     const li = document.createElement('li'); li.className = 'total';
     li.innerHTML = `Total<span>${dOf(0, n)} m · ${fmtT(tOf(0, n))}</span>`; $('hud-log').appendChild(li);
+    $('hud-log').querySelectorAll('.flash').forEach((e) => e.classList.remove('flash')); $('hud').classList.add('arrived');
     go(steps.length - 1, true); hudUpdate(cum[n], cumT[n], steps.length - 1); return;
   }
   const w = b2w([p.x, p.y, p.z]); const fl = D.floors.reduce((m, f2, j) => (p.z > f2.z - 0.5 ? j : m), 0);
@@ -302,7 +316,7 @@ function tick(now) {
     if (u >= 1) tween = null;
   }
   if (playing) walkStep(dt);
-  controls.update(); renderer.render(scene, camera); updatePins(); requestAnimationFrame(tick);
+  controls.update(); renderer.render(scene, camera); updatePins(); placeHud(); requestAnimationFrame(tick);
 }
 function resize() {
   const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h, false);
