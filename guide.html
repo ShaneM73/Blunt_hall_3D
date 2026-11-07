@@ -76,6 +76,18 @@ a{color:inherit} button{font:inherit;color:inherit}
 .pin.room .pin-label{font-family:var(--f-mono);font-weight:500;font-size:10.5px;padding:1px 5px;border-left-width:1px;background:var(--surface)}
 .pin.room .pin-stem{height:10px;background:var(--wall-edge)}.pin.room .pin-dot{display:none}
 .pin.hide{opacity:0}
+.hud{position:absolute;left:16px;bottom:44px;width:300px;background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:3px;padding:10px 12px;font-size:12.5px;pointer-events:none}
+.hud-top{display:flex;justify-content:space-between;gap:8px;font-weight:600}
+.hud-speed{font-family:var(--f-mono);font-weight:400;font-size:10.5px;color:var(--muted)}
+.hud-nums{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0}
+.hud-nums b{display:block;font-family:var(--f-display);font-size:24px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.hud-nums span{font-size:11px;color:var(--muted)}
+.hud-track{height:3px;background:var(--line)}.hud-track i{display:block;height:100%;width:0;background:var(--accent)}
+.hud-log{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:2px;font-size:12px}
+.hud-log:empty{display:none}
+.hud-log li{display:flex;gap:6px}.hud-log li b{font-family:var(--f-mono);font-weight:500;color:var(--accent-text)}
+.hud-log li span{margin-left:auto;font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.hud-log li.total{border-top:1px solid var(--line);padding-top:3px;font-weight:600}.hud-log li.total span{color:var(--ink)}
 /* panel */
 .panel{display:flex;flex-direction:column;border-left:1px solid var(--line);background:var(--surface);min-height:0}
 .panel-head{padding:22px 28px 0}
@@ -111,6 +123,7 @@ h1 em{font-style:normal;color:var(--accent-text)}
   .panel-head{padding:18px 16px 0} .steps{padding:8px 4px} .panel-foot{padding:12px 16px} .credit{padding:0 16px 12px}
   h1{font-size:40px}
   .legend{display:none}
+  .hud{left:8px;right:8px;width:auto;bottom:8px}
   .floors{top:118px}
   .tools .tool.opt{display:none}
 }
@@ -133,6 +146,12 @@ h1 em{font-style:normal;color:var(--accent-text)}
     </div>
     <div class="legend"><span><i class="route"></i>Route</span><span><i class="room"></i>Destination</span><span><i class="wall"></i>Walls (scanned)</span></div>
     <div class="floors" id="floors" aria-label="Show floors"></div>
+    <div class="hud" id="hud" hidden aria-live="polite">
+      <div class="hud-top"><span id="hud-step"></span><span class="hud-speed" id="hud-speed"></span></div>
+      <div class="hud-nums"><div><b id="hud-d">0 m</b><span>walked</span></div><div><b id="hud-t">0:00</b><span>walking time</span></div></div>
+      <div class="hud-track"><i id="hud-bar"></i></div>
+      <ol class="hud-log" id="hud-log"></ol>
+    </div>
     <div class="stage-foot"><span>Drag to orbit · scroll or pinch to zoom · ← → steps</span><span>Model from a handheld LiDAR scan, 4 Nov 2026 · <a href="./">scan viewer</a></span></div>
   </section>
   <aside class="panel">
