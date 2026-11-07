@@ -4,6 +4,8 @@ A web viewer for handheld LiDAR scans of the inside of Blunt Hall, captured with
 
 **Live site:** https://shanem73.github.io/Blunt_hall_3D/
 
+**Route guide:** https://shanem73.github.io/Blunt_hall_3D/guide.html — a clean block model of the building with step-by-step directions from the front entrance to Room 318.
+
 Use the **Scan** and **View** selectors in the side panel to switch between scans, floors and areas (Stairwell, Entrance).
 
 | Scan | Coverage | Raw data |
@@ -103,6 +105,26 @@ blender -b -P objects/s17_blender.py -- data/2026-11-04 $BH_WORK/objects/meshes 
 | `s19_sam3d` | SAM 3D Objects: a complete mesh from that photo + mask (15–40 s each on an A100); vertex colours from its own Gaussians |
 | `s20_fit_sam3d` | Places the SAM 3D mesh on the LiDAR: yaw + uniform scale + position, bottom on the floor, 108 starts refined by trimmed ICP. Accepted when ≥ 60 % of the LiDAR points lie within 3 cm (96 of 158 on 4 Nov) |
 | `s17_blender` | One `.blend` per floor + one for the whole building: collections Structure (textured glb), Stairs, Furniture (by type, SAM 3D mesh or LiDAR cut-out, property `source`), corridor camera, Cycles settings and an `unlit` scene switch. Published as a [GitHub release](https://github.com/ShaneM73/Blunt_hall_3D/releases/tag/blender-2026-11-04) |
+
+### Route guide (`scripts/pipeline/guide/`, `guide.html`)
+
+```bash
+DATASET=2026-11-04-142939 . scripts/pipeline/env.sh
+BH_SHARD=0 BH_NSHARD=2 python scripts/pipeline/guide/g01_ocr_signs.py          # one shard per GPU (EasyOCR)
+cd ~/sam3 && PYTHONPATH=~/sam3 BH_SHARD=0 BH_NSHARD=2 ~/.conda/envs/sam3/bin/python .../guide/g01b_sam3_signs.py
+python scripts/pipeline/guide/g02_signs.py && python scripts/pipeline/guide/g03_blocks.py
+BH_ROOM=318 python scripts/pipeline/guide/g04_route.py                            # writes data/2026-11-04/guide.json
+```
+
+| Stage | What it does |
+|---|---|
+| `g01_ocr_signs` | Reads text in every photo (EasyOCR) |
+| `g01b_sam3_signs` | SAM 3 boxes for "room number sign" / "door sign" (finds the small signs the OCR detector misses) |
+| `g02_signs` | Re-reads each sign at high zoom (digits only), places it in 3D by casting a ray onto the LiDAR, and votes over all views of the same sign |
+| `g03_blocks` | Block model from the structural faces: 15 cm walls on a 5 cm grid in the building frame, split into boxes; floor slabs as outline polygons |
+| `g04_route` | Shortest path over the scan walk from outside the front doors to the room's door sign; stair flights become 17 cm block steps; the room becomes a block behind its sign |
+
+The page (`guide.html`, `guide.js`) draws the blocks with three.js and turns the route into directions (turns, distances, which side the door is on).
 
 ## Known limitations
 

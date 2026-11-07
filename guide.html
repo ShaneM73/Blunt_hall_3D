@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="3D wayfinding guide in Blunt Hall, Missouri State University: from the front entrance to Room 318.">
+<title>Blunt Hall Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<style>
+/* One-screen guide: the block model of Blunt Hall is the stage (left); the directions panel (right) drives the camera.
+   Maroon marks the route and the destination; everything else stays neutral. */
+:root{
+  --bg:#f3f3f1; --surface:#fdfdfc; --ink:#1b1d22; --muted:#5f6470; --line:#dfe0e2;
+  --accent:#7a1e2c; --accent-text:#7a1e2c; --accent-soft:#f1e1e3; --on-accent:#fff;
+  --stage:#e8e6e1; --wall:#fbfaf7; --wall-edge:#9a9890; --slab:#dcd9d2; --ghost:#c9c6bf;
+  --f-display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --f-body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --panel-w:440px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121317; --surface:#1a1c21; --ink:#eceef2; --muted:#a3a8b3; --line:#30333b;
+  --accent:#c4475a; --accent-text:#f08595; --accent-soft:#3d2026; --on-accent:#14161b;
+  --stage:#17181c; --wall:#3a3d45; --wall-edge:#6d717c; --slab:#272a31; --ghost:#3a3d45; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121317; --surface:#1a1c21; --ink:#eceef2; --muted:#a3a8b3; --line:#30333b;
+  --accent:#c4475a; --accent-text:#f08595; --accent-soft:#3d2026; --on-accent:#14161b;
+  --stage:#17181c; --wall:#3a3d45; --wall-edge:#6d717c; --slab:#272a31; --ghost:#3a3d45; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;overflow:hidden}
+a{color:inherit} button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent-text);outline-offset:2px}
+.app{display:grid;grid-template-columns:minmax(0,1fr) var(--panel-w);height:100%}
+.stage{position:relative;background:var(--stage);overflow:hidden;min-width:0}
+.stage canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+.stage canvas:active{cursor:grabbing}
+.stage-top{position:absolute;top:max(14px,env(safe-area-inset-top,0px));left:16px;right:16px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;pointer-events:none}
+.brand{pointer-events:auto;display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);padding:6px 12px 6px 6px;border-radius:3px;text-decoration:none}
+.brand-mark{width:10px;height:30px;background:var(--accent);border-radius:2px}
+.brand-text{font-family:var(--f-display);font-weight:600;font-size:15px;letter-spacing:.06em;text-transform:uppercase;line-height:1.05}
+.brand-text small{display:block;font-family:var(--f-mono);font-weight:400;font-size:10.5px;letter-spacing:0;text-transform:none;color:var(--muted)}
+.tools{pointer-events:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.tool{background:var(--surface);border:1px solid var(--line);border-radius:3px;height:34px;padding:0 10px;font-size:12.5px;font-weight:500;cursor:pointer}
+.tool:hover{border-color:var(--muted)}
+.tool[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.legend{position:absolute;left:16px;top:66px;background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:8px 10px;display:flex;flex-direction:column;gap:4px;font-size:12px;pointer-events:none}
+.legend span{display:flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:2px;display:inline-block;border:1px solid var(--wall-edge)}
+.legend i.route{background:var(--accent);border-color:var(--accent);height:4px;border-radius:2px}
+.legend i.room{background:var(--accent);border-color:var(--accent)}
+.legend i.wall{background:var(--wall)}
+.floors{position:absolute;right:16px;top:66px;display:flex;flex-direction:column;gap:4px;pointer-events:auto}
+.floors button{width:44px;height:34px;background:var(--surface);border:1px solid var(--line);border-radius:3px;font-family:var(--f-mono);font-size:12px;cursor:pointer}
+.floors button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.stage-foot{position:absolute;left:16px;bottom:max(14px,env(safe-area-inset-bottom,0px));right:16px;font-family:var(--f-mono);font-size:11px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 14px;pointer-events:none}
+.stage-foot a{pointer-events:auto}
+.loader{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.pins{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.pin{position:absolute;left:0;top:0;display:flex;flex-direction:column;align-items:center;transition:opacity .25s;will-change:transform}
+.pin-label{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--ink);padding:3px 8px 3px 7px;font-size:12px;font-weight:600;white-space:nowrap;line-height:1.25}
+.pin-label small{display:block;font-family:var(--f-mono);font-weight:400;font-size:10px;color:var(--muted)}
+.pin-stem{width:1px;height:22px;background:var(--ink)}
+.pin-dot{width:7px;height:7px;border-radius:50%;background:var(--ink);margin-top:-1px}
+.pin.dest .pin-label{border-left-color:var(--accent);background:var(--accent);color:var(--on-accent);font-family:var(--f-display);font-size:17px;letter-spacing:.04em;padding:4px 10px}
+.pin.dest .pin-label small{color:var(--on-accent);opacity:.85}
+.pin.dest .pin-stem,.pin.dest .pin-dot{background:var(--accent)}
+.pin.room .pin-label{font-family:var(--f-mono);font-weight:500;font-size:10.5px;padding:1px 5px;border-left-width:1px;background:var(--surface)}
+.pin.room .pin-stem{height:10px;background:var(--wall-edge)}.pin.room .pin-dot{display:none}
+.pin.hide{opacity:0}
+/* panel */
+.panel{display:flex;flex-direction:column;border-left:1px solid var(--line);background:var(--surface);min-height:0}
+.panel-head{padding:22px 28px 0}
+.eyebrow{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+h1{font-family:var(--f-display);font-weight:700;font-size:52px;line-height:.98;letter-spacing:.01em;text-transform:uppercase;margin:10px 0 14px}
+h1 em{font-style:normal;color:var(--accent-text)}
+.lede{margin:0 0 16px;color:var(--ink)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.stat{padding:12px 12px 12px 0}
+.stat+.stat{border-left:1px solid var(--line);padding-left:12px}
+.stat b{display:block;font-family:var(--f-display);font-size:34px;font-weight:600;line-height:1}
+.stat span{font-size:12.5px;color:var(--muted)}
+.steps{list-style:none;margin:0;padding:8px 16px 8px;overflow:auto;flex:1;min-height:0}
+.step{display:grid;grid-template-columns:34px 1fr;gap:10px;padding:12px;border-radius:3px;cursor:pointer;border:1px solid transparent}
+.step:hover{border-color:var(--line)}
+.step[aria-current="step"]{background:var(--accent-soft);border-color:transparent}
+.step .n{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--ink);display:grid;place-items:center;font-family:var(--f-mono);font-size:12px;font-weight:500}
+.step[aria-current="step"] .n{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.step h3{margin:2px 0 2px;font-size:15px;font-weight:600}
+.step p{margin:0;font-size:13.5px;color:var(--muted)}
+.step .meta{font-family:var(--f-mono);font-size:11px;color:var(--muted);margin-top:4px}
+.panel-foot{display:flex;align-items:center;justify-content:space-between;padding:12px 28px;border-top:1px solid var(--line);gap:10px}
+.nav{background:var(--surface);border:1px solid var(--line);border-radius:3px;height:38px;padding:0 16px;cursor:pointer;font-weight:500}
+.nav.primary{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.nav:disabled{opacity:.4;cursor:default}
+.count{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.credit{font-size:11.5px;color:var(--muted);padding:0 28px 12px;text-align:center}
+@media (max-width:860px){
+  body{overflow:auto}
+  .app{grid-template-columns:1fr;grid-template-rows:58vh auto;height:auto}
+  .stage{height:58vh}
+  .panel{border-left:0;border-top:1px solid var(--line)}
+  .panel-head{padding:18px 16px 0} .steps{padding:8px 4px} .panel-foot{padding:12px 16px} .credit{padding:0 16px 12px}
+  h1{font-size:40px}
+  .legend{display:none}
+  .floors{top:118px}
+  .tools .tool.opt{display:none}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <section class="stage" id="stage" aria-label="3D model of Blunt Hall">
+    <div class="loader" id="loader">Building Blunt Hall in 3D…</div>
+    <div class="pins" id="pins"></div>
+    <div class="stage-top">
+      <a class="brand" href="./"><span class="brand-mark"></span><span class="brand-text">Blunt Hall Guide<small>Missouri State University · Springfield</small></span></a>
+      <div class="tools">
+        <button class="tool" id="play" aria-pressed="false">▶ Walk the route</button>
+        <button class="tool opt" id="orbit" aria-pressed="false">Orbit</button>
+        <button class="tool" id="reset">Reset view</button>
+        <button class="tool opt" id="theme" title="Light / dark">◐</button>
+      </div>
+    </div>
+    <div class="legend"><span><i class="route"></i>Route</span><span><i class="room"></i>Destination</span><span><i class="wall"></i>Walls (scanned)</span></div>
+    <div class="floors" id="floors" aria-label="Show floors"></div>
+    <div class="stage-foot"><span>Drag to orbit · scroll or pinch to zoom · ← → steps</span><span>Model from a handheld LiDAR scan, 4 Nov 2026 · <a href="./">scan viewer</a></span></div>
+  </section>
+  <aside class="panel">
+    <div class="panel-head">
+      <div class="eyebrow">Blunt Hall · Missouri State University</div>
+      <h1>Front door to <em id="h-room">Room 318</em></h1>
+      <p class="lede" id="lede"></p>
+      <div class="stats" id="stats"></div>
+    </div>
+    <ol class="steps" id="steps"></ol>
+    <div class="panel-foot">
+      <button class="nav" id="back">← Back</button><span class="count" id="count"></span><button class="nav primary" id="next">Next →</button>
+    </div>
+    <div class="credit">Designed by Prof. Xin (Shane) Miao, Missouri State University · <a href="https://github.com/ShaneM73/Blunt_hall_3D">GitHub</a></div>
+  </aside>
+</div>
+<script type="module" src="guide.js"></script>
+</body>
+</html>

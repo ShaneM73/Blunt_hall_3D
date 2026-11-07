@@ -29,6 +29,9 @@ nav { display: flex; gap: 4px; flex-wrap: wrap; }
 nav button { border: 1px solid var(--line); background: transparent; color: var(--ink);
   padding: 6px 12px; border-radius: 6px; cursor: pointer; font: inherit; }
 nav button:hover { border-color: var(--accent); }
+nav a.guide-link { border: 1px solid var(--accent); color: var(--accent); padding: 6px 12px; border-radius: 6px;
+  text-decoration: none; font: inherit; }
+nav a.guide-link:hover { background: var(--accent); color: var(--accent-ink); }
 nav button.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 main { position: relative; height: calc(100% - 58px); }
 #viewport, #slam2d { position: absolute; inset: 0; background: var(--viewer-bg); }
