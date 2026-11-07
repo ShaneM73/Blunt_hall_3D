@@ -5,7 +5,8 @@
 - stairs: the route's climbing parts become 17 cm steps 1.3 m wide (landings stay flat)
 - room: a block behind the sign's wall (3.6 m along the wall, up to the next parallel wall or 4.5 m deep)
 - other rooms: every sign on the floors becomes a label
-Usage: BH_ROOM=318 python g04_route.py     Out: data/<scan date>/guide.json (blocks + route + signs, building frame)"""
+Usage: BH_ROOM=319 BH_ROOM_REF=323:2 python g04_route.py   (REF: the room is 2 doors from the 323 sign towards the stairs)
+           Out: data/<scan date>/guide.json (blocks + route + signs, building frame)"""
 import os, sys, json
 import numpy as np
 from scipy.spatial import cKDTree
@@ -14,7 +15,7 @@ from scipy.sparse.csgraph import dijkstra
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 from common import W, log, traj
 
-ROOM = os.environ.get('BH_ROOM', '318'); START_T = float(os.environ.get('BH_START_T', 712))
+ROOM = os.environ.get('BH_ROOM', '319'); START_T = float(os.environ.get('BH_START_T', 712))
 OUT = os.environ.get('BH_GUIDE_OUT', os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'data', '2026-11-04', 'guide.json'))
 B = json.load(open(W('guide', 'blocks.json'))); fr = B['frame']; A, ORG, Z0 = fr['angle'], np.array(fr['origin']), fr['z0']
 Rm = np.array([[np.cos(-A), -np.sin(-A)], [np.sin(-A), np.cos(-A)]])
@@ -37,9 +38,33 @@ seq = np.c_[np.arange(len(F) - 1), np.arange(1, len(F))]; ws = np.linalg.norm(F[
 I = np.r_[pairs[:, 0], seq[:, 0]]; J = np.r_[pairs[:, 1], seq[:, 1]]; Wt = np.r_[wgt, ws]
 G = coo_matrix((Wt, (I, J)), shape=(len(F), len(F))).tocsr()
 
-# ---- target sign (estimated from same-parity neighbours when the sign itself was not read)
+def from_ref(ref, k):
+    """sign position of the room k doors from the read sign `ref`, towards the stairs, on the same wall.
+    Doors are the 0.8-1.0 m recessed wall pieces along the sign's wall line; a sign sits just past its own door."""
+    s = max([s for s in signs if s['num'] == ref], key=lambda s: (s['views'], s['votes'].get(ref, 0))); fl = s['floor']
+    walls = np.array(B['floors'][fl]['walls']); sb = to_b(s['xyz'])[0]
+    near = walls[np.argmin([np.hypot(max(w[0] - sb[0], 0, sb[0] - w[2]), max(w[1] - sb[1], 0, sb[1] - w[3])) for w in walls])]
+    al = 0 if near[2] - near[0] >= near[3] - near[1] else 1; ax = 1 - al; wc = (near[ax] + near[ax + 2]) / 2
+    ln = walls[(abs((walls[:, ax] + walls[:, ax + 2]) / 2 - wc) < 0.5) & (abs((walls[:, al] + walls[:, al + 2]) / 2 - sb[al]) < 15)]
+    cs = to_b(F[np.argmin(np.linalg.norm(F - np.array(s['xyz']), axis=1))])[0]; out = -np.sign(cs[ax] - wc)        # away from the corridor
+    face = out * np.where(out > 0, ln[:, ax], ln[:, ax + 2]); deep = face.max()           # corridor-side face; doors are set back
+    doors = sorted(((w[al] + w[al + 2]) / 2, (w[al + 2] - w[al])) for w, b in zip(ln, face) if 0.8 <= w[al + 2] - w[al] <= 1.0 and b > deep - 0.05)
+    log('wall line', round(wc, 2), 'corridor side', -out, 'doors at', [round(d[0], 2) for d in doors])
+    st = json.load(open(W('mesh', 'structure.json')))['stairs'][0]
+    stb = to_b([(st[0] + st[1]) / 2, (st[2] + st[3]) / 2, 0])[0]; toward = np.sign(stb[al] - sb[al])     # direction of the stairs
+    own = min(doors, key=lambda d: abs(sb[al] - (d[0] - toward * (d[1] / 2 + 0.3))))                   # sign is past its door
+    seq = sorted([d for d in doors if toward * (d[0] - own[0]) > 0], key=lambda d: toward * (d[0] - own[0]))
+    pitch = np.median(np.diff([d[0] for d in doors])); tgt = seq[k - 1]
+    log(f'room {ROOM}: {k} doors from {ref} towards the stairs (door pitch {pitch:.2f} m), door centre {tgt[0]:.2f}')
+    pb = sb.copy(); pb[al] += tgt[0] - own[0]
+    xy = (pb[:2] + ORG) @ Rm; return dict(num=ROOM, xyz=[xy[0], xy[1], pb[2] + Z0], floor=fl, views=0, ref=ref, ref_doors=k, door=float(tgt[0]), pitch=float(pitch))
+
+
+# ---- target sign: read directly, or counted in doors from a read sign (BH_ROOM_REF=323:2), or interpolated
+REF = os.environ.get('BH_ROOM_REF')
 tg = [s for s in signs if s['num'] == ROOM]; est = False
-if tg: tg = max(tg, key=lambda s: (s['views'], s['votes'].get(ROOM, 0)))          # most views, then strongest reading
+if REF: tg = from_ref(REF.split(':')[0], int(REF.split(':')[1])); est = True
+elif tg: tg = max(tg, key=lambda s: (s['views'], s['votes'].get(ROOM, 0)))          # most views, then strongest reading
 else:
     fl = int(ROOM[0]) - 1; n = int(ROOM); same = [s for s in signs if s['floor'] == fl and int(s['num']) % 2 == n % 2]
     a = max([s for s in same if int(s['num']) < n], key=lambda s: int(s['num'])); b = min([s for s in same if int(s['num']) > n], key=lambda s: int(s['num']))
@@ -85,10 +110,10 @@ depth = 4.5
 for v in walls:
     vlen = v[along + 2] - v[along]; vc = (v[ax] + v[ax + 2]) / 2
     if vlen > 1.5 and v[along] < sb[along] < v[along + 2] and 1.5 < side * (vc - face) < depth: depth = side * (vc - face)
-lo_a, hi_a = sb[along] - 1.8, sb[along] + 1.8; a0, a1 = sorted([face, face + side * depth])
+lo_a, hi_a = (tg['door'] - tg['pitch'] / 2, tg['door'] + tg['pitch'] / 2) if 'door' in tg else (sb[along] - 1.8, sb[along] + 1.8); a0, a1 = sorted([face, face + side * depth])
 box = [0, 0, 0, 0]; box[along], box[along + 2], box[ax], box[ax + 2] = lo_a, hi_a, a0, a1
 room = dict(num=ROOM, floor=tg['floor'], box=[round(float(x), 3) for x in box], sign=sb.round(3).tolist(), estimated=est,
-            views=tg.get('views', 0), est_from=tg.get('estimated_from'))
+            views=tg.get('views', 0), est_from=tg.get('estimated_from'), ref=tg.get('ref'), ref_doors=tg.get('ref_doors'))
 
 # ---- page data
 lab = [dict(num=s['num'], floor=s['floor'], p=to_b(s['xyz'])[0].round(2).tolist(), views=s['views']) for s in signs

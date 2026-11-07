@@ -127,15 +127,15 @@ function makeSteps() {
     { title: 'Lobby to the stairs', text: `Cross the lobby to the central stairwell (${d(0, iS)} m from the doors).`, a: 0, b: iS, floor: 0 },
     { title: `Up to the ${D.floors[D.room.floor].name}`, text: `Take the stairs up ${climbed} floors, past the 2nd-floor landing.`, a: iS, b: iE, floor: D.room.floor, stair: true },
     { title: `${D.floors[D.room.floor].name} corridor`, text: `Leave the stairs and ${corr}. Walk about ${d(iE, n)} m.`, a: iE, b: n, floor: D.room.floor },
-    { title: `Room ${D.room.num}`, text: `Room ${D.room.num} is on your ${side}${near.length ? `, near rooms ${near.join(' and ')}` : ''}.${D.room.estimated ? ' (Position estimated from the neighbouring door signs.)' : ''}`, a: Math.max(0, n - 6), b: n, floor: D.room.floor, dest: true },
+    { title: `Room ${D.room.num}`, text: `Room ${D.room.num} is on your ${side}${near.length && !D.room.ref ? `, near room${near.length > 1 ? 's' : ''} ${near.join(' and ')}` : ''}.${D.room.ref ? ` Its door is ${D.room.ref_doors === 2 ? 'two' : D.room.ref_doors} doors before Room ${D.room.ref}, on the same side.` : (D.room.estimated ? ' (Position estimated from the neighbouring door signs.)' : '')}`, a: Math.max(0, n - 6), b: n, floor: D.room.floor, dest: true },
   ];
-  steps.forEach((s, k) => { s.meta = k === 0 ? `${Math.max(1, Math.round(D.route_len / WALK / 60))} min walk` : (k === steps.length - 1 ? 'Destination' : `${d(s.a, s.b)} m`); });
+  steps.forEach((s, k) => { s.meta = k === 0 ? `${Math.ceil(D.route_len / WALK / 60)} min walk` : (k === steps.length - 1 ? 'Destination' : `${d(s.a, s.b)} m`); });
   $('steps').innerHTML = steps.map((s, k) => `<li class="step" data-k="${k}"><span class="n">${k}</span><div><h3>${s.title}</h3><p>${s.text}</p><div class="meta">${s.meta}</div></div></li>`).join('');
   $('steps').querySelectorAll('.step').forEach((el) => el.onclick = () => go(+el.dataset.k));
   $('lede').textContent = `A 3D guide built from a LiDAR scan of the building. Follow the maroon line from the front doors to Room ${D.room.num}, step by step.`;
   $('stats').innerHTML = `<div class="stat"><b>${Math.round(D.route_len)} m</b><span>walking route</span></div>`
     + `<div class="stat"><b>${climbed}</b><span>floors up by the stairs</span></div>`
-    + `<div class="stat"><b>${Math.max(1, Math.round(D.route_len / WALK / 60))} min</b><span>at an easy pace</span></div>`;
+    + `<div class="stat"><b>${Math.ceil(D.route_len / WALK / 60)} min</b><span>at an easy pace</span></div>`;
   $('h-room').textContent = `Room ${D.room.num}`;
 }
 
