@@ -4,7 +4,7 @@ A web viewer for handheld LiDAR scans of the inside of Blunt Hall, captured with
 
 **Live site:** https://shanem73.github.io/Blunt_hall_3D/
 
-**Route guide:** https://shanem73.github.io/Blunt_hall_3D/guide.html — a clean block model of the building with step-by-step directions from the front entrance to Room 319.
+**Route guide:** https://shanem73.github.io/Blunt_hall_3D/guide.html — opens on a 3D campus map of Missouri State with Roy Blunt Hall highlighted; click the building to go inside, where a clean block model gives step-by-step directions from the front entrance to Room 319 (`guide.html#route` opens the building directly).
 
 Use the **Scan** and **View** selectors in the side panel to switch between scans, floors and areas (Stairwell, Entrance).
 
@@ -125,6 +125,8 @@ BH_ROOM=319 BH_ROOM_REF=323:2 python scripts/pipeline/guide/g04_route.py   # 319
 | `g04_route` | Shortest path over the scan walk from outside the front doors to the room's door sign (or, when the sign could not be read, counted in doors from a read sign: the recessed 0.9 m door pieces of the wall, one every 2.75 m on the 3rd floor); the stairs become 4 straight flights on the building axes (17 cm block steps) joined by flat landing plates, and the route follows their centre lines; the room becomes a block behind its sign; wherever the walk passes through a wall block (doors the scanner saw closed, e.g. the glass vestibule doors) a 1.4 m doorway is cut |
 
 The page (`guide.html`, `guide.js`) draws the blocks with three.js, gives each step its distance and walking time (1.3 m/s on the level, 0.55 m/s on the stairs; the steps add up to the total), shows live distance / time in a panel that travels beside the walker, with a report per stage, during **Walk the route**, shows a "Roy Blunt Hall" monument sign outside the front doors, the office owner's GitHub headshot (`assets/shane.jpg`) standing in the room, and turns the route into directions (turns, distances, which side the door is on).
+
+Campus map data (`data/campus/msu-map.json`, from the [MSU Campus Atlas](https://shanem73.github.io/msu-campus-atlas-2026/)) is © OpenStreetMap contributors under the [Open Database License](https://www.openstreetmap.org/copyright); OpenStreetMap still names Roy Blunt Hall "Temple Hall".
 
 ## Known limitations
 

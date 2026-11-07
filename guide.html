@@ -35,6 +35,7 @@
   --accent:#c4475a; --accent-text:#f08595; --accent-soft:#3d2026; --on-accent:#14161b;
   --stage:#17181c; --wall:#3a3d45; --wall-edge:#6d717c; --slab:#272a31; --ghost:#3a3d45; color-scheme:dark}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;overflow:hidden}
 a{color:inherit} button{font:inherit;color:inherit}
@@ -58,6 +59,7 @@ a{color:inherit} button{font:inherit;color:inherit}
 .legend i.route{background:var(--accent);border-color:var(--accent);height:4px;border-radius:2px}
 .legend i.room{background:var(--accent);border-color:var(--accent)}
 .legend i.wall{background:var(--wall)}
+.legend i.msu{background:#cf8f97;border-color:#cf8f97}
 .floors{position:absolute;right:16px;top:66px;display:flex;flex-direction:column;gap:4px;pointer-events:auto}
 .floors button{width:44px;height:34px;background:var(--surface);border:1px solid var(--line);border-radius:3px;font-family:var(--f-mono);font-size:12px;cursor:pointer}
 .floors button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
@@ -75,7 +77,15 @@ a{color:inherit} button{font:inherit;color:inherit}
 .pin.dest .pin-stem,.pin.dest .pin-dot{background:var(--accent)}
 .pin.room .pin-label{font-family:var(--f-mono);font-weight:500;font-size:10.5px;padding:1px 5px;border-left-width:1px;background:var(--surface)}
 .pin.room .pin-stem{height:10px;background:var(--wall-edge)}.pin.room .pin-dot{display:none}
-.pin.hide{opacity:0}
+.pin.campus-dest .pin-label{display:flex;align-items:center;gap:8px;background:var(--accent);color:var(--on-accent);border-left-color:var(--accent);font-family:var(--f-display);font-size:18px;letter-spacing:.03em;padding:4px 12px 4px 4px;line-height:1.05}
+.pin.campus-dest .pin-label img{width:34px;height:34px;border-radius:50%;border:2px solid var(--on-accent)}
+.pin.campus-dest .pin-label small{display:block;font-family:var(--f-mono);font-size:10px;letter-spacing:0;color:var(--on-accent);opacity:.9}
+.pin.campus-dest .pin-stem,.pin.campus-dest .pin-dot{background:var(--accent)}
+.pin.campus-dest{pointer-events:auto;cursor:pointer}.pin.campus-dest:hover .pin-label{filter:brightness(1.15)}
+.pin.campus-mark .pin-label{font-size:11.5px;font-weight:500;padding:2px 7px;border-left-width:2px}
+.pin.campus-mark .pin-stem{height:14px}
+.step.campus .n{font-family:var(--f-display);font-weight:700}
+.pin.hide{opacity:0;pointer-events:none}
 .hud{position:absolute;left:0;top:0;width:212px;background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:3px;padding:7px 9px;font-size:12px;pointer-events:none;will-change:transform;box-shadow:0 2px 10px rgba(0,0,0,.12)}
 .hud::before{content:"";position:absolute;left:-22px;top:50%;width:19px;height:1px;background:var(--accent)}
 .hud.flip::before{left:auto;right:-20px}
@@ -147,7 +157,7 @@ h1 em{font-style:normal;color:var(--accent-text)}
         <button class="tool opt" id="theme" title="Light / dark">◐</button>
       </div>
     </div>
-    <div class="legend"><span><i class="route"></i>Route</span><span><i class="room"></i>Destination</span><span><i class="wall"></i>Walls (scanned)</span></div>
+    <div class="legend" id="legend"><span><i class="route"></i>Route</span><span><i class="room"></i>Destination</span><span><i class="wall"></i>Walls (scanned)</span></div>
     <div class="floors" id="floors" aria-label="Show floors"></div>
     <div class="hud" id="hud" hidden aria-live="polite">
       <div class="hud-top"><span id="hud-step"></span><span class="hud-speed" id="hud-speed"></span></div>
@@ -155,7 +165,7 @@ h1 em{font-style:normal;color:var(--accent-text)}
       <div class="hud-track"><i id="hud-bar"></i></div>
       <ol class="hud-log" id="hud-log"></ol>
     </div>
-    <div class="stage-foot"><span>Drag to orbit · scroll or pinch to zoom · ← → steps</span><span>Model from a handheld LiDAR scan, 4 Nov 2026 · <a href="./">scan viewer</a></span></div>
+    <div class="stage-foot"><span>Drag to orbit · scroll or pinch to zoom · ← → steps</span><span id="foot-src">Model from a handheld LiDAR scan, 4 Nov 2026 · <a href="./">scan viewer</a></span></div>
   </section>
   <aside class="panel">
     <div class="panel-head">
