@@ -5,7 +5,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const DATA = 'data/2026-11-04/guide.json';
-const WALL_H = 2.2, ROUTE_R = 0.13, WALK = 1.3;          // wall height shown (m), route tube radius, walking speed (m/s)
+const WALL_H = 2.2, ROUTE_R = 0.16, WALK = 1.3;          // wall height shown (m), route tube radius, walking speed (m/s)
 const $ = (id) => document.getElementById(id);
 const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const b2w = (p) => new THREE.Vector3(p[0], p[2], -p[1]);   // building (x, y, z-up) -> three.js (x, y-up, -y)
@@ -26,7 +26,7 @@ const mats = {
   wall: new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true }),
   edge: new THREE.LineBasicMaterial({ color: 0x999999, transparent: true }),
   slab: new THREE.MeshLambertMaterial({ color: 0xdddddd, transparent: true }),
-  stair: new THREE.MeshLambertMaterial({ color: 0xeeeeee }),
+  stair: new THREE.MeshLambertMaterial({ color: 0xeeeeee, transparent: true }),
   route: new THREE.MeshBasicMaterial({ color: 0x7a1e2c }),
   room: new THREE.MeshLambertMaterial({ color: 0x7a1e2c, transparent: true, opacity: 0.55, depthWrite: false }),
   walker: new THREE.MeshBasicMaterial({ color: 0x7a1e2c }),
@@ -36,6 +36,14 @@ function applyTheme() {
   mats.wall.color.set(css('--wall')); mats.edge.color.set(css('--wall-edge')); mats.slab.color.set(css('--slab'));
   mats.stair.color.set(css('--wall')); for (const k of ['route', 'room', 'walker']) mats[k].color.set(css('--accent'));
   for (const fl of floors) for (const o of fl.g.children) if (o.userData.ghostMat) o.userData.ghostMat.color.copy(o.userData.base.color);
+}
+
+// see-through building: walls, floors and stairs are translucent so the route shows from outside
+function setXray(on) {
+  for (const [k, o] of [['wall', 0.28], ['slab', 0.5], ['stair', 0.6], ['edge', 0.5]]) {
+    mats[k].opacity = on ? o : 1; mats[k].depthWrite = !on; mats[k].needsUpdate = true;
+  }
+  $('xray').setAttribute('aria-pressed', on);
 }
 
 let D, floors = [], tube, tubeSegs, curve, cum, walker, pins = [], steps = [], cur = 0, focusFloor = 3, playing = false, walkT = 0;
@@ -146,7 +154,7 @@ function makeSteps() {
   const vEntr = D.entrance;
   steps = [
     { title: 'Overview', text: `The whole route: ${Math.round(D.route_len)} m from the front entrance, up ${climbed} floors by the central stairs, to Room ${D.room.num}.`, a: 0, b: n, floor: 3, view: 'all' },
-    { title: 'Front entrance', text: 'Come in through the glass front doors and the small vestibule on the 1st floor.', a: 0, b: Math.min(n, routeIndexAt(12)), floor: 0 },
+    { title: 'Front entrance', text: 'Come in through the glass front doors and the small vestibule on the 1st floor.', a: 0, b: Math.min(n, routeIndexAt(12) + 1), floor: 0 },
     { title: 'Lobby to the stairs', text: `Cross the lobby to the central stairwell (${d(0, iS)} m from the doors).`, a: 0, b: iS, floor: 0 },
     { title: `Up to the ${D.floors[D.room.floor].name}`, text: `Take the stairs up ${climbed} floors, past the 2nd-floor landing.`, a: iS, b: iE, floor: D.room.floor, stair: true },
     { title: `${D.floors[D.room.floor].name} corridor`, text: `Leave the stairs and ${corr}. Walk about ${d(iE, n)} m.`, a: iE, b: n, floor: D.room.floor },
@@ -272,6 +280,7 @@ async function main() {
   $('next').onclick = () => go(cur === steps.length - 1 ? 0 : cur + 1); $('back').onclick = () => go(cur - 1);
   $('reset').onclick = () => go(cur);
   $('play').onclick = () => (playing ? stopWalk() : (go(0), showFloors(0), startWalk()));
+  $('xray').onclick = () => setXray($('xray').getAttribute('aria-pressed') !== 'true'); setXray(true);
   $('orbit').onclick = () => { controls.autoRotate = !controls.autoRotate; $('orbit').setAttribute('aria-pressed', controls.autoRotate); };
   $('theme').onclick = () => {
     const dark = matchMedia('(prefers-color-scheme: dark)').matches, t = document.documentElement.dataset.theme;

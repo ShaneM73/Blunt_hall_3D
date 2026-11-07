@@ -135,7 +135,8 @@ for k, f in enumerate(flights):
         g_ = flights[k + 1]; sm = f['s1'] + d_ * 0.65
         sp += [P(f['axis'], sm, f['lat'], f['z1']), P(f['axis'], sm, g_['lat'], f['z1'])]
 if flights:
-    ia = int(np.flatnonzero(route[:, 2] > flights[0]['z0'] + 0.1)[0]) - 1
+    ia = int(np.flatnonzero(route[:, 2] > flights[0]['z0'] + 0.5)[0])                  # well up the first flight,
+    while ia > 0 and route[ia, 2] > flights[0]['z0'] + 0.1: ia -= 1                    # back to its foot (not a floor bump)
     ib = int(np.flatnonzero(route[:, 2] > flights[-1]['z1'] - 0.05)[0])
     route = np.vstack([route[:ia + 1], np.array(sp), route[ib:]])
 log('stairs:', len(flights), 'flights', [f"{f['z0']:.2f}->{f['z1']:.2f} ({f['n']} steps)" for f in flights], len(stairs['landings']), 'landings')
