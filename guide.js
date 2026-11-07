@@ -46,7 +46,7 @@ function setXray(on) {
   $('xray').setAttribute('aria-pressed', on);
 }
 
-let D, floors = [], tube, tubeSegs, curve, cum, cumT, simT = 0, walkStage = 0, walker, pins = [], steps = [], cur = 0, focusFloor = 3, playing = false;
+let signAt = [], D, floors = [], tube, tubeSegs, curve, cum, cumT, simT = 0, walkStage = 0, walker, pins = [], steps = [], cur = 0, focusFloor = 3, playing = false;
 
 function boxGeom(x0, y0, x1, y1, z0, z1) {
   const g = new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0);
@@ -89,6 +89,33 @@ function buildStairs() {
   if (!geoms.length) return;
   const g = mergeGeometries(geoms, false);
   root.add(new THREE.Mesh(g, mats.stair)); root.add(new THREE.LineSegments(new THREE.EdgesGeometry(g, 30), mats.edge));
+}
+
+function entranceSign() {
+  // monument sign outside the front doors, beside the approach path, facing people walking up to the building
+  const R = D.route, p0 = R[0], p1 = R[Math.min(4, R.length - 1)];
+  const dx = p0[0] - p1[0], dy = p0[1] - p1[1], L = Math.hypot(dx, dy) || 1, out = [dx / L, dy / L];       // pointing away from the doors
+  const side = [-out[1], out[0]], c = [p0[0] - out[0] * 2.0 - side[0] * 5.2, p0[1] - out[1] * 2.0 - side[1] * 5.2];
+  const g = new THREE.Group(); g.position.set(c[0], c[1], p0[2]); g.rotation.z = Math.atan2(out[1], out[0]); root.add(g);
+  signAt = [[c[0] + side[0] * 3.6, c[1] + side[1] * 3.6, p0[2]], [c[0] - side[0] * 3.6, c[1] - side[1] * 3.6, p0[2] + 2.5]];   // ends, for camera framing
+  const stone = new THREE.MeshLambertMaterial({ color: 0xd9d4ca }), maroon = new THREE.MeshLambertMaterial({ color: 0x5e0009 });
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(0.9, 7.6, 0.35), stone); plinth.position.z = 0.175; g.add(plinth);
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(0.45, 7.2, 2.2), maroon); panel.position.z = 0.35 + 1.1; g.add(panel);
+  const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 318; const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+  const draw = () => {
+    const x = cv.getContext('2d'); x.fillStyle = '#5e0009'; x.fillRect(0, 0, 1024, 318);
+    x.fillStyle = '#ffffff'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.font = '700 150px "Barlow Condensed", "Arial Narrow", Arial, sans-serif'; x.fillText('ROY BLUNT HALL', 512, 135);
+    x.fillRect(332, 222, 360, 3);
+    x.font = '500 46px "Public Sans", Arial, sans-serif'; x.fillText('MISSOURI STATE UNIVERSITY', 512, 268); tex.needsUpdate = true;
+  };
+  draw(); document.fonts?.ready.then(draw);
+  for (const dir of [1, -1]) {                // lettering on both faces
+    const f = new THREE.Mesh(new THREE.PlaneGeometry(7.0, 2.17), new THREE.MeshBasicMaterial({ map: tex }));
+    f.geometry.rotateX(Math.PI / 2); f.geometry.rotateZ(dir * Math.PI / 2); f.position.set(dir * 0.23, 0, 0.35 + 1.1); g.add(f);
+  }
+  const edge = new THREE.LineSegments(new THREE.EdgesGeometry(panel.geometry), mats.edge); edge.position.copy(panel.position); g.add(edge);
 }
 
 function portrait(url, z) {          // round headshot standing in the destination room, always facing the camera
@@ -234,7 +261,7 @@ function fly(target, pos, ms = 1200) {
 }
 function viewFor(a, b, all) {
   const box = new THREE.Box3();
-  const pts = all ? D.floors.flatMap((f) => f.walls.map((w) => [w[0], w[1], f.z])) : D.route.slice(a, b + 1);
+  const pts = all ? D.floors.flatMap((f) => f.walls.map((w) => [w[0], w[1], f.z])) : D.route.slice(a, b + 1).concat(a === 0 ? signAt : []);
   for (const p of pts) box.expandByPoint(b2w(p));
   const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
   const r = Math.max(all ? 10 : 16, Math.hypot(s.x, s.z) * 0.62 + (all ? 0 : 6));
@@ -327,7 +354,7 @@ function resize() {
 async function main() {
   D = await (await fetch(DATA)).json();
   applyTheme();
-  floors = D.floors.map(buildFloor); buildStairs(); buildRoute(); makePins(); makeSteps();
+  floors = D.floors.map(buildFloor); buildStairs(); buildRoute(); entranceSign(); makePins(); makeSteps();
   $('floors').innerHTML = D.floors.map((f, i) => `<button data-f="${i}" title="Show up to the ${f.name}">${i + 1}F</button>`).reverse().join('');
   $('floors').querySelectorAll('button').forEach((b) => b.onclick = () => showFloors(+b.dataset.f));
   $('next').onclick = () => go(cur === steps.length - 1 ? 0 : cur + 1); $('back').onclick = () => go(cur - 1);
