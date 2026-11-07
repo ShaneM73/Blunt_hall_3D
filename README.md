@@ -4,7 +4,7 @@ A web viewer for handheld LiDAR scans of the inside of Blunt Hall, captured with
 
 **Live site:** https://shanem73.github.io/Blunt_hall_3D/
 
-**Route guide:** https://shanem73.github.io/Blunt_hall_3D/guide.html — a clean block model of the building with step-by-step directions from the front entrance to Room 318.
+**Route guide:** https://shanem73.github.io/Blunt_hall_3D/guide.html — a clean block model of the building with step-by-step directions from the front entrance to Room 319.
 
 Use the **Scan** and **View** selectors in the side panel to switch between scans, floors and areas (Stairwell, Entrance).
 
@@ -113,7 +113,7 @@ DATASET=2026-11-04-142939 . scripts/pipeline/env.sh
 BH_SHARD=0 BH_NSHARD=2 python scripts/pipeline/guide/g01_ocr_signs.py          # one shard per GPU (EasyOCR)
 cd ~/sam3 && PYTHONPATH=~/sam3 BH_SHARD=0 BH_NSHARD=2 ~/.conda/envs/sam3/bin/python .../guide/g01b_sam3_signs.py
 python scripts/pipeline/guide/g02_signs.py && python scripts/pipeline/guide/g03_blocks.py
-BH_ROOM=318 python scripts/pipeline/guide/g04_route.py                            # writes data/2026-11-04/guide.json
+BH_ROOM=319 BH_ROOM_REF=323:2 python scripts/pipeline/guide/g04_route.py   # 319 = two doors from the 323 sign towards the stairs
 ```
 
 | Stage | What it does |
@@ -122,7 +122,7 @@ BH_ROOM=318 python scripts/pipeline/guide/g04_route.py                          
 | `g01b_sam3_signs` | SAM 3 boxes for "room number sign" / "door sign" (finds the small signs the OCR detector misses) |
 | `g02_signs` | Re-reads each sign at high zoom (digits only), places it in 3D by casting a ray onto the LiDAR, and votes over all views of the same sign |
 | `g03_blocks` | Block model from the structural faces: 15 cm walls on a 5 cm grid in the building frame, split into boxes; floor slabs as outline polygons |
-| `g04_route` | Shortest path over the scan walk from outside the front doors to the room's door sign; stair flights become 17 cm block steps; the room becomes a block behind its sign |
+| `g04_route` | Shortest path over the scan walk from outside the front doors to the room's door sign (or, when the sign could not be read, counted in doors from a read sign: the recessed 0.9 m door pieces of the wall, one every 2.75 m on the 3rd floor); stair flights become 17 cm block steps; the room becomes a block behind its sign |
 
 The page (`guide.html`, `guide.js`) draws the blocks with three.js and turns the route into directions (turns, distances, which side the door is on).
 
