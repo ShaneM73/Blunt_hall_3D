@@ -130,6 +130,8 @@ Campus map data (`data/campus/msu-map.json`, from the [MSU Campus Atlas](https:/
 
 ### Comparison with Meta SceneScript and Cloud2BIM (`scripts/pipeline/compare/`)
 
+**Interactive page:** https://shanem73.github.io/Blunt_hall_3D/compare.html · **Findings and data:** [release compare-2026-11-07](https://github.com/ShaneM73/Blunt_hall_3D/releases/tag/compare-2026-11-07)
+
 The 3rd floor (19 M clean LiDAR points, about 37 m × 137 m) was turned into walls by three methods and every result
 was scored the same way against the measured wall surfaces, on the floor plan (2.5 cm grid), so thick walls (blocks,
 IFC solids) and thin wall planes count alike:
@@ -178,6 +180,7 @@ BH_FLOOR=2 BH_C2B_SECONDS=435 <cloud2bim env>/python scripts/pipeline/compare/c0
 # CC BY-NC, kept in work/models/scenescript/)
 cd scenescript && BH_FLOOR=2 BH_SS_CKPT=... BH_SS_TILE=8 BH_SS_STRIDE=5 BH_SS_MAXPTS=20000 BH_SS_TAG=t8-20k <scenescript env>/python .../c04_scenescript.py
 BH_FLOOR=2 BH_CMP_PLOT=ours,cloud2bim,scenescript,scenescript-t8-20k python scripts/pipeline/compare/c03_score.py
+BH_FLOOR=2 python scripts/pipeline/compare/c05_web.py          # data/compare/ for compare.html
 ```
 
 ## Known limitations

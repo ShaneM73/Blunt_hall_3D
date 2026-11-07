@@ -55,6 +55,7 @@ for f in files:
                         doors=int(len(m['doors'])) if 'doors' in m.files else None,
                         seconds=None if 'seconds' not in m.files or not np.isfinite(m['seconds']) else round(float(m['seconds']), 1))
     log(name, scores[name])
+    good = np.zeros_like(sk); good[sk] = ok; np.savez_compressed(os.path.join(D, f'{name}_plan.npz'), good=good, bad=sk & ~good)
     if ax is None: continue
     ax.imshow(refimg, origin='lower', cmap='Greys', alpha=0.35, extent=[lo[0], hi[0], lo[1], hi[1]])
     ys, xs = np.nonzero(sk); ax.scatter(lo[0] + xs * RES, lo[1] + ys * RES, s=0.2, c=np.where(ok, '#1f6f43', '#c0392b'))
@@ -62,4 +63,5 @@ for f in files:
         for d in m['doors']: ax.add_patch(plt.Rectangle((d[0], d[1]), d[3] - d[0], d[4] - d[1], fill=False, ec='#1f4fbf', lw=1.2))
     ax.set_aspect('equal'); ax.set_title(f"{LABEL.get(name, name)}\ncompleteness {comp:.0%} · precision {prec:.0%} · F {fs:.2f}", fontsize=11)
 json.dump(scores, open(os.path.join(D, 'scores.json'), 'w'), indent=1)
+np.savez_compressed(os.path.join(D, 'ref_plan.npz'), ref=refimg, lo=lo, res=RES)                 # for the web page (c05)
 fig.savefig(W('renders', f'compare_f{FI}_plan.png'), dpi=70, bbox_inches='tight')
