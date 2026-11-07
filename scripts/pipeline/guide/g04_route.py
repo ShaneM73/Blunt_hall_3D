@@ -156,11 +156,32 @@ box = [0, 0, 0, 0]; box[along], box[along + 2], box[ax], box[ax + 2] = lo_a, hi_
 room = dict(num=ROOM, floor=tg['floor'], box=[round(float(x), 3) for x in box], sign=sb.round(3).tolist(), estimated=est,
             views=tg.get('views', 0), est_from=tg.get('estimated_from'), ref=tg.get('ref'), ref_doors=tg.get('ref_doors'))
 
+# ---- doorways: wherever the walk passes through a wall block, there is a door the scanner saw closed (glass doors,
+# closed office doors) -> open a 1.4 m gap in that wall around the crossing
+floors_out = [dict(f) for f in B['floors']]; ndoor = 0
+for fi, f in enumerate(floors_out):
+    walls = [list(w) for w in f['walls']]
+    for a, b in zip(route[:-1], route[1:]):
+        if abs(a[2] - f['z']) > 0.3 or abs(b[2] - f['z']) > 0.3: continue
+        L = np.linalg.norm(b[:2] - a[:2]); q = a[:2] + np.linspace(0, 1, max(2, int(L / 0.05)))[:, None] * (b[:2] - a[:2])
+        k = 0
+        while k < len(walls):
+            w = walls[k]; inside = (q[:, 0] > w[0]) & (q[:, 0] < w[2]) & (q[:, 1] > w[1]) & (q[:, 1] < w[3])
+            if not inside.any(): k += 1; continue
+            c = q[inside].mean(0); al = 0 if w[2] - w[0] >= w[3] - w[1] else 1                 # cut along the wall's length
+            lo_, hi_ = w[al], w[al + 2]; g0, g1 = c[al] - 0.7, c[al] + 0.7
+            pieces = []
+            if g0 - lo_ > 0.1: pieces.append(w[:al + 2] + [g0] + w[al + 3:] if al == 0 else [w[0], w[1], w[2], g0] + w[4:])
+            if hi_ - g1 > 0.1: pieces.append([g1] + w[1:] if al == 0 else [w[0], g1] + w[2:])
+            walls[k:k + 1] = pieces; ndoor += 1
+    f['walls'] = [[round(float(x), 3) for x in w] for w in walls]
+log('doorways opened where the walk crosses a wall:', ndoor)
+
 # ---- page data
 lab = [dict(num=s['num'], floor=s['floor'], p=to_b(s['xyz'])[0].round(2).tolist(), views=s['views']) for s in signs
        if (s['views'] >= 2 and s['num'][0] == str(s['floor'] + 1)) or s['num'] == ROOM]          # a sign's first digit is its floor
 cum = np.r_[0, np.cumsum(np.linalg.norm(np.diff(route, axis=0), axis=1))]
 data = dict(room=room, route=route.round(3).tolist(), route_len=round(float(cum[-1]), 1), stairs=stairs, labels=lab,
-            floors=[dict(name=f['name'], z=f['z'], h=f['h'], walls=f['walls'], lintels=f['lintels'], slab=f['slab']) for f in B['floors']],
+            floors=[dict(name=f['name'], z=f['z'], h=f['h'], walls=f['walls'], lintels=f['lintels'], slab=f['slab']) for f in floors_out],
             entrance=route[0].round(2).tolist(), frame=dict(angle=A, origin=ORG.tolist(), z0=Z0))
 json.dump(data, open(OUT, 'w'), separators=(',', ':')); log('wrote', OUT, os.path.getsize(OUT) // 1024, 'KB')
