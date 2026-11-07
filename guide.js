@@ -66,13 +66,35 @@ function buildFloor(f, i) {
 }
 
 function buildStairs() {
-  const geoms = D.stairs.map((s) => {
-    const g = new THREE.BoxGeometry(s.len + 0.02, 1.3, 0.3);
-    g.rotateZ(Math.atan2(s.dir[1], s.dir[0])); g.translate(s.c[0], s.c[1], s.top - 0.15); return g;
-  });
+  // straight flights (solid block steps, 17 cm rise) joined by flat landing plates
+  const geoms = [], st = D.stairs;
+  for (const f of st.flights) {
+    const run = (f.s1 - f.s0) / f.n, rise = (f.z1 - f.z0) / f.n;
+    for (let k = 0; k < f.n; k++) {
+      const a = f.s0 + k * run, b = a + run, top = f.z0 + (k + 1) * rise, z0 = Math.max(f.z0 - 0.25, top - 0.6);
+      const [x0, x1] = f.axis === 0 ? [Math.min(a, b), Math.max(a, b)] : [f.lat - f.w / 2, f.lat + f.w / 2];
+      const [y0, y1] = f.axis === 0 ? [f.lat - f.w / 2, f.lat + f.w / 2] : [Math.min(a, b), Math.max(a, b)];
+      geoms.push(boxGeom(x0, y0, x1, y1, z0, top));
+    }
+  }
+  for (const l of st.landings) geoms.push(boxGeom(l[0], l[1], l[2], l[3], l[4] - 0.25, l[4]));
   if (!geoms.length) return;
   const g = mergeGeometries(geoms, false);
   root.add(new THREE.Mesh(g, mats.stair)); root.add(new THREE.LineSegments(new THREE.EdgesGeometry(g, 30), mats.edge));
+}
+
+function portrait(url, z) {          // round headshot standing in the destination room, always facing the camera
+  const r = D.room, b = r.box, tex = new THREE.CanvasTexture(document.createElement('canvas'));
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  sp.position.set((b[0] + b[2]) / 2, (b[1] + b[3]) / 2, z); sp.scale.set(1.9, 1.9, 1); sp.renderOrder = 5; root.add(sp);
+  const img = new Image();
+  img.onload = () => {
+    const c = tex.image; c.width = c.height = 256; const g = c.getContext('2d');
+    g.beginPath(); g.arc(128, 128, 124, 0, 2 * Math.PI); g.fillStyle = css('--accent'); g.fill();
+    g.save(); g.beginPath(); g.arc(128, 128, 112, 0, 2 * Math.PI); g.clip(); g.drawImage(img, 16, 16, 224, 224); g.restore();
+    tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
+  };
+  img.src = url; return sp;
 }
 
 function buildRoute() {
@@ -86,6 +108,7 @@ function buildRoute() {
   const r = D.room, fz = D.floors[r.floor].z, b = r.box;
   const rg = boxGeom(b[0], b[1], b[2], b[3], fz, fz + Math.min(WALL_H, D.floors[r.floor].h) + 0.05);
   root.add(new THREE.Mesh(rg, mats.room));
+  portrait('assets/shane.jpg', fz + 1.35);
 }
 function setProgress(t) {             // 0..1 of the route drawn
   const segs = Math.round(tubeSegs * Math.max(0, Math.min(1, t)));
@@ -150,7 +173,7 @@ function makePins() {
   addPin([R[0][0], R[0][1], R[0][2] + 0.2], 'Front entrance<small>1st floor</small>', 'mark', 0);
   const iS = Math.max(0, R.findIndex((p) => p[2] > R[0][2] + 0.3) - 1);
   addPin([R[iS][0], R[iS][1], R[iS][2] + 0.2], 'Stairs<small>to upper floors</small>', 'mark', 0);
-  const bc = [(r.box[0] + r.box[2]) / 2, (r.box[1] + r.box[3]) / 2, D.floors[r.floor].z + WALL_H];
+  const bc = [(r.box[0] + r.box[2]) / 2, (r.box[1] + r.box[3]) / 2, D.floors[r.floor].z + WALL_H + 0.3];
   addPin(bc, `Room ${r.num}<small>${D.floors[r.floor].name}</small>`, 'dest', r.floor);
   for (const l of D.labels) if (l.num !== r.num) addPin([l.p[0], l.p[1], D.floors[l.floor].z + WALL_H], l.num, 'room', l.floor);
 }
