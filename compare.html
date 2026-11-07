@@ -14,7 +14,7 @@
 :root{
   --bg:#f3f3f1; --surface:#fdfdfc; --ink:#1b1d22; --muted:#5f6470; --line:#dfe0e2; --soft:#ecebe7;
   --accent:#7a1e2c; --accent-text:#7a1e2c; --accent-soft:#f1e1e3; --on-accent:#fff;
-  --plan-bg:#fbfaf7; --ref:#9a9890; --bad:#d03b3b; --door:#2a78d6; --bar:#1b1d22; --bar-track:#e6e5e1;
+  --plan-bg:#fbfaf7; --wall3:#f4f2ec; --ref:#9a9890; --bad:#d03b3b; --door:#2a78d6; --bar:#1b1d22; --bar-track:#e6e5e1;
   --f-display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
   --f-body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
@@ -22,11 +22,11 @@
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#121317; --surface:#1a1c21; --ink:#eceef2; --muted:#a3a8b3; --line:#30333b; --soft:#23262c;
   --accent:#c4475a; --accent-text:#f08595; --accent-soft:#3d2026; --on-accent:#14161b;
-  --plan-bg:#16181c; --ref:#6d717c; --bad:#e66767; --door:#3987e5; --bar:#eceef2; --bar-track:#30333b; color-scheme:dark}}
+  --plan-bg:#16181c; --wall3:#4a4e57; --ref:#6d717c; --bad:#e66767; --door:#3987e5; --bar:#eceef2; --bar-track:#30333b; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#121317; --surface:#1a1c21; --ink:#eceef2; --muted:#a3a8b3; --line:#30333b; --soft:#23262c;
   --accent:#c4475a; --accent-text:#f08595; --accent-soft:#3d2026; --on-accent:#14161b;
-  --plan-bg:#16181c; --ref:#6d717c; --bad:#e66767; --door:#3987e5; --bar:#eceef2; --bar-track:#30333b; color-scheme:dark}
+  --plan-bg:#16181c; --wall3:#4a4e57; --ref:#6d717c; --bad:#e66767; --door:#3987e5; --bar:#eceef2; --bar-track:#30333b; color-scheme:dark}
 *{box-sizing:border-box} [hidden]{display:none!important}
 html,body{margin:0} body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15.5px;line-height:1.6}
 a{color:var(--accent-text)} button{font:inherit;color:inherit}
@@ -71,6 +71,16 @@ p.note{color:var(--muted);font-size:13px;max-width:820px}
 .key i.ok{background:var(--ink)}.key i.bad{background:var(--bad)}.key i.ref{background:var(--ref);opacity:.6}
 .key i.door{width:11px;height:11px;border:2px solid var(--door);border-radius:1px;background:none}
 .key i.known{width:11px;height:11px;border:2px dashed var(--muted);border-radius:50%;background:none}
+.wrap3d{position:relative;height:min(64vh,600px);background:var(--plan-bg);overflow:hidden;touch-action:none}
+.wrap3d canvas{display:block;width:100%;height:100%}
+.lbl3d{position:absolute;inset:0;pointer-events:none}
+.lbl3d div{position:absolute;font-size:12px;font-weight:600;background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:2px 7px}
+.lbl3d div small{font-family:var(--f-mono);font-weight:400;color:var(--muted);margin-left:6px}
+.load3d{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.chk{display:flex;align-items:center;gap:5px;font-size:12.5px;border:1px solid var(--line);border-radius:3px;padding:6px 8px;cursor:pointer}
+#mode4[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.key i.wall3{width:12px;height:12px;background:var(--wall3);border:1px solid var(--ref);border-radius:1px}
+.key i.bad3{width:12px;height:12px;background:var(--bad);border-radius:1px}
 .vstat{margin-left:auto;font-family:var(--f-mono);font-size:12px;color:var(--muted)}
 .vstat b{color:var(--ink);font-weight:500}
 /* tables */
@@ -131,16 +141,34 @@ footer{max-width:1120px;margin:0 auto;padding:18px 16px 40px;color:var(--muted);
     </div>
   </div>
 
-  <h2><small>02 · Score it</small>Completeness, precision and doors</h2>
+  <h2><small>02 · Walk around it</small>The wall models in 3D</h2>
+  <p class="note">The actual wall geometry each method produced: our 15 cm blocks, Cloud2BIM's IFC wall solids and SceneScript's thin wall planes. Each wall is checked against the scan: light walls stand on a measured wall (at least half of the wall within 10 cm + half its thickness of measured points), red walls do not. Drag to orbit, right-drag or two fingers to pan, scroll or pinch to zoom.</p>
+  <div class="viewer" id="v3d">
+    <div class="vbar"><div role="tablist" id="tabs3d" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+      <div class="vtools" style="gap:6px;align-items:center">
+        <button class="tab" id="mode4" aria-pressed="false" title="All four models side by side, one shared camera" style="width:auto;height:auto">All four</button>
+        <label class="chk"><input type="checkbox" id="showpts" checked> LiDAR wall points</label>
+        <label class="chk"><input type="checkbox" id="showdoors" checked> Doors</label>
+        <button id="reset3d" title="Reset the view" aria-label="Reset the view">⤢</button>
+      </div></div>
+    <div class="wrap3d" id="wrap3d"><div class="lbl3d" id="lbl3d"></div><div class="load3d" id="load3d">Loading the 3D models…</div></div>
+    <div class="vfoot">
+      <span class="key"><i class="wall3"></i>✓ wall on a measured wall</span><span class="key"><i class="bad3"></i>✕ wall not on a measured wall</span>
+      <span class="key"><i class="door"></i>door / opening</span><span class="key"><i class="ref"></i>LiDAR wall points (6 cm)</span>
+      <span class="vstat" id="vstat3d"></span>
+    </div>
+  </div>
+
+  <h2><small>03 · Score it</small>Completeness, precision and doors</h2>
   <p class="note"><b>Completeness</b>: share of the measured wall points within 10 cm of a modelled wall. <b>Precision</b>: share of the modelled wall centre line within 10 cm (+ half the local wall thickness) of a measured wall point. <b>F</b>: their harmonic mean. Scored on the plan at 2.5 cm so thick walls (blocks, IFC solids) and thin planes (SceneScript) count alike.</p>
   <div class="tablewrap"><table id="scoretable"></table></div>
 
-  <h2><small>03 · Tune it</small>SceneScript needs room-sized pieces</h2>
+  <h2><small>04 · Tune it</small>SceneScript needs room-sized pieces</h2>
   <p class="note">SceneScript reads at most a 32 m cube (640 bins of 5 cm) and was trained on single rooms seen through Aria glasses. The floor was cut into overlapping square tiles; each wall or door is kept by the tile whose centre holds it. Each dot is one full run over the floor; hover for details.</p>
   <div class="chart" id="sweepchart"><div class="chart-tip" id="ctip" hidden></div></div>
   <details><summary>Show the runs as a table</summary><div class="tablewrap"><table id="sweeptable"></table></div></details>
 
-  <h2><small>04 · What we found</small>Findings</h2>
+  <h2><small>05 · What we found</small>Findings</h2>
   <div class="findings" id="findings">
     <div class="finding"><div class="k">0.88</div><h3>Scan geometry wins</h3><p>Our block model fits wall faces directly in the cleaned LiDAR (15 cm blocks on the building axes), so it follows the real walls best: 84 % of the measured walls covered, 92 % of its walls on a real wall.</p></div>
     <div class="finding"><div class="k">0.26 → 0.74</div><h3>SceneScript is a room-scale model</h3><p>Fed 28 m tiles it misses most walls; at 8–10 m tiles (about one room) it reaches F 0.72–0.74. Thinning each tile to 15–30k points matters far less than tile size. Its walls are thin planes, often slightly off the face or drawn across open space.</p></div>
@@ -148,7 +176,7 @@ footer{max-width:1120px;margin:0 auto;padding:18px 16px 40px;color:var(--muted);
     <div class="finding"><div class="k">0–2 / 8</div><h3>Closed doors defeat everyone</h3><p>Of the 8 recessed office doors on the Room 319 wall, SceneScript finds at most 2; Cloud2BIM and our openings detector find none. The route guide places Room 319 by counting the regular 2.75 m door spacing instead.</p></div>
   </div>
 
-  <h2><small>05 · Set-up notes</small>What it took to run them</h2>
+  <h2><small>06 · Set-up notes</small>What it took to run them</h2>
   <div class="tablewrap"><table>
     <tr><th>Method</th><th>Change or fix</th><th>Why</th></tr>
     <tr><td>Cloud2BIM</td><td>Slab-density threshold 0.6 → 0.35</td><td>It finds floors and ceilings as height levels holding ≥ 60 % of the densest level's points. A handheld scanner sees the ceiling at ~40 % of the floor's density, so the ceiling (and so the storey) was missed.</td></tr>
@@ -159,7 +187,7 @@ footer{max-width:1120px;margin:0 auto;padding:18px 16px 40px;color:var(--muted);
   </table></div>
   <p class="note">All changes, scripts and settings: <a href="https://github.com/ShaneM73/Blunt_hall_3D/tree/main/scripts/pipeline/compare">scripts/pipeline/compare</a> (including <code>cloud2bim.patch</code>). SceneScript weights (CC BY-NC) were obtained from <a href="https://www.projectaria.com/scenescript/">projectaria.com/scenescript</a> and are not redistributed.</p>
 
-  <h2><small>06 · Everything we used</small>All models in the Blunt Hall project</h2>
+  <h2><small>07 · Everything we used</small>All models in the Blunt Hall project</h2>
   <div class="tablewrap"><table id="models">
     <tr><th>Model / method</th><th>From</th><th>Kind</th><th>Used for</th><th>What it gave here</th><th>Licence</th></tr>
     <tr><td><b>Our block model</b><br><span class="tag">s12 · g03 · g04</span></td><td>This project</td><td>Geometry (no learning)</td><td>Walls, slabs, doorways, stairs and the route of the 3D guide</td><td>F 0.88 on the 3rd floor; 4 straight flights + 3 landings; 107 m route</td><td>MIT</td></tr>
@@ -173,6 +201,13 @@ footer{max-width:1120px;margin:0 auto;padding:18px 16px 40px;color:var(--muted);
   </table></div>
 </main>
 <footer>Designed by Prof. Xin (Shane) Miao, Missouri State University · Data and code: <a href="https://github.com/ShaneM73/Blunt_hall_3D">github.com/ShaneM73/Blunt_hall_3D</a> · Findings release: <a href="https://github.com/ShaneM73/Blunt_hall_3D/releases/tag/compare-2026-11-07">compare-2026-11-07</a></footer>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
 <script src="compare.js"></script>
+<script type="module" src="compare3d.js"></script>
 </body>
 </html>

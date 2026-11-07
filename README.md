@@ -180,7 +180,8 @@ BH_FLOOR=2 BH_C2B_SECONDS=435 <cloud2bim env>/python scripts/pipeline/compare/c0
 # CC BY-NC, kept in work/models/scenescript/)
 cd scenescript && BH_FLOOR=2 BH_SS_CKPT=... BH_SS_TILE=8 BH_SS_STRIDE=5 BH_SS_MAXPTS=20000 BH_SS_TAG=t8-20k <scenescript env>/python .../c04_scenescript.py
 BH_FLOOR=2 BH_CMP_PLOT=ours,cloud2bim,scenescript,scenescript-t8-20k python scripts/pipeline/compare/c03_score.py
-BH_FLOOR=2 python scripts/pipeline/compare/c05_web.py          # data/compare/ for compare.html
+BH_FLOOR=2 python scripts/pipeline/compare/c05_web.py          # data/compare/ for compare.html (plan viewer)
+BH_FLOOR=2 python scripts/pipeline/compare/c06_web3d.py        # data/compare/ 3D wall models + wall points (3D section)
 ```
 
 ## Known limitations
