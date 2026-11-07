@@ -39,7 +39,7 @@ G = coo_matrix((Wt, (I, J)), shape=(len(F), len(F))).tocsr()
 
 # ---- target sign (estimated from same-parity neighbours when the sign itself was not read)
 tg = [s for s in signs if s['num'] == ROOM]; est = False
-if tg: tg = max(tg, key=lambda s: s['views'])
+if tg: tg = max(tg, key=lambda s: (s['views'], s['votes'].get(ROOM, 0)))          # most views, then strongest reading
 else:
     fl = int(ROOM[0]) - 1; n = int(ROOM); same = [s for s in signs if s['floor'] == fl and int(s['num']) % 2 == n % 2]
     a = max([s for s in same if int(s['num']) < n], key=lambda s: int(s['num'])); b = min([s for s in same if int(s['num']) > n], key=lambda s: int(s['num']))
