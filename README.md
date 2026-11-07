@@ -128,6 +128,58 @@ The page (`guide.html`, `guide.js`) draws the blocks with three.js, gives each s
 
 Campus map data (`data/campus/msu-map.json`, from the [MSU Campus Atlas](https://shanem73.github.io/msu-campus-atlas-2026/)) is © OpenStreetMap contributors under the [Open Database License](https://www.openstreetmap.org/copyright); OpenStreetMap still names Roy Blunt Hall "Temple Hall".
 
+### Comparison with Meta SceneScript and Cloud2BIM (`scripts/pipeline/compare/`)
+
+The 3rd floor (19 M clean LiDAR points, about 37 m × 137 m) was turned into walls by three methods and every result
+was scored the same way against the measured wall surfaces, on the floor plan (2.5 cm grid), so thick walls (blocks,
+IFC solids) and thin wall planes count alike:
+
+- **completeness**: share of LiDAR points on vertical surfaces 0.3–2.0 m above the floor within 10 cm of a modelled wall
+- **precision**: share of each model's wall centre line within 10 cm (+ half the local wall thickness) of such a point
+
+| Method | Completeness | Precision | F | Wall length | Doors | Run time |
+|---|---|---|---|---|---|---|
+| **Ours** (LiDAR block model, `s12` + `g03`) | **84 %** | **92 %** | **0.88** | 847 m | 41 openings | — |
+| [Cloud2BIM](https://github.com/VaclavNezerka/Cloud2BIM) (density histograms + morphology → IFC) | 41 % | 80 % | 0.54 | 439 m | 0 | 7 min 15 s (CPU) |
+| [SceneScript](https://github.com/facebookresearch/scenescript), non-Manhattan model, 28 m tiles | 18 % | 49 % | 0.26 | 445 m | 24 | 45 s (A100) |
+| SceneScript, 12 m tiles, 20k points per tile | 59–60 % | 76–78 % | 0.66–0.68 | 890–920 m | 22–23 | 76 s |
+| SceneScript, 10 m tiles, 20k points | 69 % | 75 % | 0.72 | 1,084 m | 39 | 94 s |
+| **SceneScript, 8 m tiles, 20k points** (best) | 68 % | 81 % | 0.74 | 987 m | 43 | 110 s |
+
+![Plan comparison](docs/compare/compare_3rd_floor_plan.png)
+
+Green: modelled wall on a measured wall; red: no measured wall within the tolerance; blue: doors / openings; grey: LiDAR wall points.
+All scores: `docs/compare/scores_3rd_floor.json`.
+
+Findings
+- **SceneScript** is trained on room-sized, sparse Aria "semi-dense" point clouds. It handles at most a 32 m cube, so the floor is
+  cut into overlapping tiles (a wall or door is kept by the tile whose centre region holds its midpoint). Room-sized tiles matter
+  most: F rises from 0.26 (28 m tiles) to 0.74 (8 m); thinning each tile to 15–30k points changes little. Repeat runs differ by
+  about 0.02 in F (the decoder samples). Some tiles return nothing, and 2 of 131 crashed inside the decoder. Its walls are thin
+  planes, often slightly off the real face or extended across open areas (the red lines).
+- **Cloud2BIM** gets the long corridor walls right but misses the central light-well block and most interior partitions, and finds no
+  openings ("no openings detected" for every wall). It needed three changes (`cloud2bim.patch`): its slab detector requires a
+  ceiling layer with ≥ 60 % of the floor's point density, while a handheld scan sees the ceiling at ~40 %, so the threshold was
+  lowered to 35 %; LaTeX in its plots was turned off; and its room-zone (IfcSpace) step, which crashed, was made non-fatal.
+  7 of its 101 IFC walls do not triangulate.
+- **Ours** uses the scan's own geometry (wall faces fitted in s12, 15 cm blocks in g03) and so follows the real walls best. Closed doors
+  that sit flush with the wall are hard for every method: of the 8 known office doors on the Room 319 wall, SceneScript finds 0–2,
+  ours and Cloud2BIM 0 (the guide places Room 319 by the door spacing instead, `g04`).
+
+Reproduce (after `c01_export.py` and the block model):
+```bash
+DATASET=2026-11-04-142939 . scripts/pipeline/env.sh
+BH_FLOOR=2 python scripts/pipeline/compare/c01_export.py          # clean storey -> cloud2bim.xyz, points.npz, walls_ref.npz
+BH_FLOOR=2 python scripts/pipeline/compare/c02_ours.py
+# Cloud2BIM (git clone VaclavNezerka/Cloud2BIM; git apply cloud2bim.patch; env with its requirements.txt)
+python cloud2entities.py scripts/pipeline/compare/cloud2bim_f2.yaml
+BH_FLOOR=2 BH_C2B_SECONDS=435 <cloud2bim env>/python scripts/pipeline/compare/c02_cloud2bim.py
+# SceneScript (facebookresearch/scenescript env with torchsparse from its master branch = 2.1; weights from projectaria.com/scenescript,
+# CC BY-NC, kept in work/models/scenescript/)
+cd scenescript && BH_FLOOR=2 BH_SS_CKPT=... BH_SS_TILE=8 BH_SS_STRIDE=5 BH_SS_MAXPTS=20000 BH_SS_TAG=t8-20k <scenescript env>/python .../c04_scenescript.py
+BH_FLOOR=2 BH_CMP_PLOT=ours,cloud2bim,scenescript,scenescript-t8-20k python scripts/pipeline/compare/c03_score.py
+```
+
 ## Known limitations
 
 - Coordinates are local SLAM metres for each scan (no GNSS indoors), so the two scans are not in a common frame. Z is up.

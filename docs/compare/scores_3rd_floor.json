@@ -1,0 +1,98 @@
+{
+ "cloud2bim": {
+  "completeness": 0.411,
+  "precision": 0.801,
+  "f_score": 0.543,
+  "wall_length_m": 438.9,
+  "doors": 0,
+  "seconds": 435.0
+ },
+ "ours": {
+  "completeness": 0.839,
+  "precision": 0.916,
+  "f_score": 0.876,
+  "wall_length_m": 847.4,
+  "doors": 41,
+  "seconds": null
+ },
+ "scenescript-t10-20k": {
+  "completeness": 0.688,
+  "precision": 0.748,
+  "f_score": 0.717,
+  "wall_length_m": 1084.2,
+  "doors": 39,
+  "seconds": 94.4
+ },
+ "scenescript-t12-20k-rep": {
+  "completeness": 0.602,
+  "precision": 0.783,
+  "f_score": 0.681,
+  "wall_length_m": 891.2,
+  "doors": 23,
+  "seconds": 78.2
+ },
+ "scenescript-t12-20k": {
+  "completeness": 0.593,
+  "precision": 0.756,
+  "f_score": 0.664,
+  "wall_length_m": 917.6,
+  "doors": 22,
+  "seconds": 76.1
+ },
+ "scenescript-t16-15k": {
+  "completeness": 0.518,
+  "precision": 0.797,
+  "f_score": 0.628,
+  "wall_length_m": 716.1,
+  "doors": 21,
+  "seconds": 64.2
+ },
+ "scenescript-t16-30k": {
+  "completeness": 0.534,
+  "precision": 0.742,
+  "f_score": 0.621,
+  "wall_length_m": 826.9,
+  "doors": 31,
+  "seconds": 71.7
+ },
+ "scenescript-t16": {
+  "completeness": 0.542,
+  "precision": 0.779,
+  "f_score": 0.639,
+  "wall_length_m": 814.2,
+  "doors": 26,
+  "seconds": 96.8
+ },
+ "scenescript-t20-30k": {
+  "completeness": 0.364,
+  "precision": 0.8,
+  "f_score": 0.5,
+  "wall_length_m": 486.8,
+  "doors": 16,
+  "seconds": 30.1
+ },
+ "scenescript-t28-50k": {
+  "completeness": 0.219,
+  "precision": 0.614,
+  "f_score": 0.323,
+  "wall_length_m": 404.3,
+  "doors": 18,
+  "seconds": 34.6
+ },
+ "scenescript-t8-20k": {
+  "completeness": 0.68,
+  "precision": 0.806,
+  "f_score": 0.737,
+  "wall_length_m": 987.4,
+  "doors": 43,
+  "seconds": 110.0
+ },
+ "scenescript": {
+  "completeness": 0.179,
+  "precision": 0.486,
+  "f_score": 0.261,
+  "wall_length_m": 445.1,
+  "doors": 24,
+  "seconds": 44.5
+ }
+}

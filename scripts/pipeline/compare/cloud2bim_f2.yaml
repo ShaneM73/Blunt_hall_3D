@@ -1,0 +1,29 @@
+# Cloud2BIM (VaclavNezerka/Cloud2BIM) settings for the Blunt Hall 3rd floor, building frame (c01_export.py)
+e57_input: false
+xyz_files:
+  - /home/sgf.edubear.net/xm7303/Blunt_hall_3D/work/2026-11-04-142939/compare/f2/cloud2bim.xyz
+dilute: false
+dilution_factor: 10
+exterior_scan: false
+pc_resolution: 0.015          # our export grid (1.5 cm)
+grid_coefficient: 5
+bfs_thickness: 0.3
+tfs_thickness: 0.4
+min_wall_length: 0.10
+min_wall_thickness: 0.05
+max_wall_thickness: 0.75
+exterior_walls_thickness: 0.3
+output_ifc: /home/sgf.edubear.net/xm7303/Blunt_hall_3D/work/2026-11-04-142939/compare/f2/cloud2bim.ifc
+ifc_project_name: Blunt Hall
+ifc_project_long_name: Roy Blunt Hall 3rd floor from handheld LiDAR
+ifc_project_version: version 1.0
+ifc_author_name: Xin
+ifc_author_surname: Miao
+ifc_author_organization: Missouri State University
+ifc_building_name: Roy Blunt Hall
+ifc_building_type: University
+ifc_building_phase: Existing
+ifc_site_latitude: [37, 12, 16]
+ifc_site_longitude: [-93, -16, -44]
+ifc_site_elevation: 400.0
+material_for_objects: Concrete

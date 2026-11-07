@@ -1,0 +1,92 @@
+diff --git a/aux_functions.py b/aux_functions.py
+index 164eb65..4f36bc3 100644
+--- a/aux_functions.py
++++ b/aux_functions.py
+@@ -277,7 +277,7 @@ def identify_slabs(points_xyz, points_rgb, bottom_floor_slab_thickness, top_floo
+         idx_selected_xyz = np.where((z < points_xyz[:, 2]) & (points_xyz[:, 2] < (z + z_step)))[0]
+         z_array.append(z)
+         n_points_array.append(len(idx_selected_xyz))
+-    max_n_points_array = 0.6 * max(n_points_array)
++    max_n_points_array = 0.35 * max(n_points_array)   # Blunt Hall: handheld scans see the ceiling at ~40 % of the floor density (was 0.6)
+ 
+     # plot_point_cloud_data(points_xyz, n_points_array, z_array, max_n_points_array, z_step)
+ 
+@@ -1365,7 +1365,7 @@ def identify_openings(wall_number, wall_points, wall_label, resolution, grid_rou
+ 
+             if plot_histograms_for_openings:
+                 # Plotting
+-                plt.rc('text', usetex=True)
++                plt.rc('text', usetex=False)
+                 plt.rc('font', family='serif', size=11)
+                 fig = plt.figure(figsize=(8 / 1.2, 5 / 1.2))
+                 bin_width_x = (x_max - x_min) / bins
+diff --git a/cloud2entities.py b/cloud2entities.py
+index c14323f..0ad2b90 100644
+--- a/cloud2entities.py
++++ b/cloud2entities.py
+@@ -173,7 +173,11 @@ for i, storey_pointcloud in enumerate(point_cloud_storeys):
+     # SECTION: Split the Storeys to Zones (Spaces in the IFC)
+     print('Segmenting the storey to zones (spaces)...')
+     print("-" * 50)
+-    zones_in_storey = identify_zones(walls, snapping_distance=0.8, plot_zones=False)
++    try:
++        zones_in_storey = identify_zones(walls, snapping_distance=0.8, plot_zones=False)
++    except Exception as e:   # Blunt Hall: zone (IfcSpace) segmentation crashes on this storey; walls / slabs are still written
++        print('Zone segmentation failed (%r), continuing without IfcSpace zones.' % e)
++        zones_in_storey = {}
+     zones.append(zones_in_storey)
+ 
+ # SECTION: Generate IFC
+diff --git a/plotting_functions.py b/plotting_functions.py
+index cfaf3c2..59ee689 100644
+--- a/plotting_functions.py
++++ b/plotting_functions.py
+@@ -9,7 +9,7 @@ def set_plot_style():
+     """
+     Set the common plotting style for all plots.
+     """
+-    plt.rc('text', usetex=True)
++    plt.rc('text', usetex=False)
+     plt.rc('font', family='serif', size=11)
+ 
+ 
+diff --git a/space_generator.py b/space_generator.py
+index 5a4c07b..ea34276 100644
+--- a/space_generator.py
++++ b/space_generator.py
+@@ -10,7 +10,7 @@ import os
+ 
+ def plot_wall_center_lines(walls_dictionary, title):
+     # Set text and font style to match
+-    plt.rc('text', usetex=True)
++    plt.rc('text', usetex=False)
+     plt.rc('font', family='serif', size=11)
+ 
+     # Create a 2D plot for the center lines with adjusted figure size
+@@ -423,7 +423,7 @@ def plot_zone_segments(zone_segments, label):
+     """Plots the zone segments with a consistent style."""
+ 
+     # Set text and font style
+-    plt.rc('text', usetex=True)
++    plt.rc('text', usetex=False)
+     plt.rc('font', family='serif', size=11)
+ 
+     # Create a figure with the adjusted size
+@@ -487,7 +487,7 @@ def extract_space_dimensions(walls_local, plot_zones):
+     # Step 5: Plot each polygon
+     if plot_zones:
+         # Set text and font style
+-        plt.rc('text', usetex=True)
++        plt.rc('text', usetex=False)
+         plt.rc('font', family='serif', size=11)
+ 
+         # Create a figure with adjusted size
+@@ -665,7 +665,7 @@ def plot_space_segments(new_space_dimensions):
+     """Plots segments for each space in different colors with a consistent style."""
+ 
+     # Set text and font style
+-    plt.rc('text', usetex=True)
++    plt.rc('text', usetex=False)
+     plt.rc('font', family='serif', size=11)
+ 
+     # Create a figure with adjusted size
