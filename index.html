@@ -27,13 +27,14 @@
     <button data-view="model">3D model</button>
     <button data-view="build">Building model</button>
     <button data-view="splat">Gaussian splat</button>
+    <button data-view="video">LiDAR vs video</button>
     <a class="guide-link" href="compare.html">Model comparison</a>
     <a class="guide-link" href="guide.html">Route guide: front door → Room 319</a>
   </nav>
 </header>
 
 <main>
-  <div id="viewport"></div>
+  <div id="viewport"><div id="splitlbl" hidden></div></div>
   <div id="slam2d" hidden>
     <div class="slamwrap"><canvas id="slamcanvas"></canvas></div>
   </div>

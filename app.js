@@ -24,20 +24,36 @@ scene.add(world);
 scene.add(new THREE.HemisphereLight(0xffffff, 0x666666, 1.6));
 const sun = new THREE.DirectionalLight(0xffffff, 1.2); sun.position.set(10, -6, 20); scene.add(sun);
 
-function setBg() { scene.background = new THREE.Color(css('--viewer-bg') || '#e9e7e1'); }
+function setBg() { scene.background = new THREE.Color(css('--viewer-bg') || '#e9e7e1'); if (split?.scene) split.scene.background = scene.background; }
 setBg();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', setBg);
 
 const pointMats = new Set();
 function resize() {
   const w = viewport.clientWidth, h = viewport.clientHeight;
-  renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+  renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); placeSplitLabels();
   for (const m of pointMats) m.uniforms.vh.value = h * renderer.getPixelRatio();
 }
 addEventListener('resize', resize); resize();
 const clock = new THREE.Clock();
 let walkRef = null;   // set once the walk module section has run (avoids a temporal-dead-zone error in the first frames)
-renderer.setAnimationLoop(() => { const dt = Math.min(clock.getDelta(), 0.1); if (walkRef?.active) walkRef.step(dt); else controls.update(); if (!splatActive) renderer.render(scene, camera); });
+// split view (LiDAR vs video): two scenes, one camera; side by side, or stacked on a tall screen
+var split = { on: false, scene: null };   // var: setBg / resize run before this line
+const splitCells = () => { const W = viewport.clientWidth, h = viewport.clientHeight;
+  // on a wide screen keep both halves clear of the side panel
+  const pr = document.getElementById('panel')?.getBoundingClientRect(), vr = viewport.getBoundingClientRect();
+  const w = W >= h && pr && pr.width && pr.left - vr.left > W / 2 ? pr.left - vr.left - 12 : W;
+  // on a tall screen the panel sits along the bottom: stack both halves above it
+  const H2 = W < h && pr && pr.width > W * 0.8 && pr.top - vr.top > h * 0.4 ? pr.top - vr.top - 8 : h;
+  return W >= h ? [[0, 0, w / 2, h], [w / 2, 0, w / 2, h]] : [[0, 0, W, H2 / 2], [0, H2 / 2, W, H2 / 2]]; };
+function renderFrame() {
+  if (!split.on) { renderer.setScissorTest(false); renderer.setViewport(0, 0, viewport.clientWidth, viewport.clientHeight); renderer.render(scene, camera); return; }
+  const H = viewport.clientHeight, cs = splitCells(); camera.aspect = cs[0][2] / cs[0][3]; camera.updateProjectionMatrix();
+  renderer.setScissorTest(false); renderer.setViewport(0, 0, viewport.clientWidth, H); renderer.setClearColor(scene.background); renderer.clear(); renderer.setScissorTest(true);
+  [scene, split.scene].forEach((sc, i) => { const [x, y, w, h] = cs[i]; renderer.setViewport(x, H - y - h, w, h); renderer.setScissor(x, H - y - h, w, h); renderer.render(sc, camera); });
+  renderer.setScissorTest(false);
+}
+renderer.setAnimationLoop(() => { const dt = Math.min(clock.getDelta(), 0.1); if (walkRef?.active) walkRef.step(dt); else controls.update(); if (!splatActive) renderFrame(); });
 
 // ---------- loading helpers ----------
 const box = $('#loading');
@@ -203,6 +219,40 @@ async function loadBuild() {
     const r = cache.get(url); grp.add(r); r.traverse(o => { if (o.isMesh) tris += o.geometry.index ? o.geometry.index.count / 3 : 0; });
   }
   return { group: grp, tris };
+}
+
+// ---------- video model (LingBot-Map, from the comparison page) next to the LiDAR model ----------
+// data/compare/video_mesh.bin is in the building frame of the guide (x, y along the walls, z = 0 at the 1st floor);
+// building -> scan frame: rotate by the frame angle after adding its origin, lift by z0 (data/<scan>/guide.json frame)
+const videoMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
+async function loadVideo() {
+  const url = 'data/compare/video_mesh.bin';
+  if (!cache.has(url)) {
+    const [M, V, G, mb] = [await (await fetch('data/compare/compare3d.json')).json(), await (await fetch('data/compare/video.json')).json(),
+      await (await fetch(base + 'guide.json')).json(), await fetchBuf(url, 'Loading the video model…')];
+    const [nv, nf] = new Uint32Array(mb, 0, 2), q = new Int16Array(mb, 8, nv * 3), o = M.origin;
+    const pos = new Float32Array(nv * 3); for (let i = 0; i < nv * 3; i++) pos[i] = q[i] / 100 + o[i % 3];
+    const rgb = new Uint8Array(mb, 8 + nv * 6, nv * 3), err = new Uint8Array(mb, 8 + nv * 9, nv);
+    const idx = new Uint32Array(mb, 8 + nv * 10 + ((4 - ((nv * 10) % 4)) % 4), nf * 3);
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setIndex(new THREE.BufferAttribute(idx, 1));
+    const col = new Float32Array(nv * 3); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const inner = new THREE.Group(); inner.position.set(G.frame.origin[0], G.frame.origin[1], 0); inner.add(new THREE.Mesh(g, videoMat));
+    const outer = new THREE.Group(); outer.rotation.z = G.frame.angle; outer.position.z = G.frame.z0; outer.add(inner);
+    const paint = (mode) => { const a = new THREE.Color(0xf4f2ec), b = new THREE.Color(0xd03b3b), t = new THREE.Color();
+      for (let i = 0; i < nv; i++) { if (mode === 'err') { t.copy(a).lerp(b, Math.min(1, err[i] / 50)); col.set([t.r, t.g, t.b], i * 3); }
+        else col.set([rgb[3 * i] / 255, rgb[3 * i + 1] / 255, rgb[3 * i + 2] / 255], i * 3); }
+      g.attributes.color.needsUpdate = true; };
+    paint('rgb'); cache.set(url, { group: outer, tris: nf, paint, info: V });
+  }
+  return cache.get(url);
+}
+var splitLbl = $('#splitlbl');
+function placeSplitLabels() {
+  if (!splitLbl || !split) return;
+  if (!split.on) { splitLbl.hidden = true; return; } splitLbl.hidden = false;
+  const cs = splitCells(), names = ['LiDAR · TrueView GO <small>3D model</small>', 'Video · LingBot-Map <small>no LiDAR</small>'];
+  splitLbl.innerHTML = cs.map(([x, y], i) => `<div style="left:${x + 10}px;top:${y + 10}px">${names[i]}</div>`).join('')
+    + (cs[1][0] > 0 ? `<i style="left:${cs[1][0]}px;top:0;bottom:0;width:1px"></i>` : `<i style="top:${cs[1][1]}px;left:0;right:0;height:1px"></i>`);
 }
 
 // ---------- walk mode: first person, collisions with the model, gravity onto floors / stairs ----------
@@ -401,6 +451,37 @@ const views = {
     $('#walkBtn').onclick = () => { top.constant = 99; startWalk(m); };
     statRows([['Faces', fmt(meta.structure.faces)], ['Texture', `${meta.structure.res_cm} cm / texel`], ['Triangles shown', fmt(Math.round(m.tris))]]);
   },
+  async video() {
+    if (ds.id !== '2026-11-04') { clearWorld(); info.innerHTML = '<h2>LiDAR vs video</h2><p class="note">The video model covers the 3rd floor of the 4 Nov 2026 scan. Choose that scan above.</p>'; ctl.innerHTML = ''; statRows([]); return; }
+    if (floorIx !== meta.main_floor) { floorIx = meta.main_floor; framed = false; renderPicker(); }
+    const m = await loadModel(); const v = await loadVideo(); const t = await loadTraj(); const f = FL();
+    clearWorld(); world.add(m.group); world.add(t.group); t.group.visible = false; setMeshMat(m.group, meshUnlit);
+    if (!split.scene) { split.scene = new THREE.Scene(); setBg(); }
+    split.scene.clear(); split.scene.add(v.group); split.on = true; placeSplitLabels();
+    // camera on the part of the floor the video covered, from the south-west and above
+    v.group.updateMatrixWorld(true); const bx = new THREE.Box3().setFromObject(v.group), c = bx.getCenter(new THREE.Vector3()), sz = bx.getSize(new THREE.Vector3());
+    const D = Math.max(sz.x, sz.y) * 0.75; c.z = f.z + 0.5; framed = true;
+    controls.target.copy(c); camera.position.set(c.x - 0.35 * D, c.y - 0.7 * D, c.z + 0.75 * D); controls.update();
+    const V = v.info, A = V.align;
+    info.innerHTML = `<h2>LiDAR vs video</h2><p>Left (top on a phone): the 3D model from the handheld LiDAR scan. Right (bottom): the same 3rd floor rebuilt from a 3½-minute walkthrough video by LingBot-Map, with no LiDAR at all. The video model was then scaled and aligned to the scan. Both views share one camera.</p>
+      <p class="note">The video covers the north half of the floor (stairwell, the Room 319 corridor and the loop around the light well). Scores and details: <a href="compare.html#video">model comparison, section 05</a>.</p>`;
+    ctl.innerHTML = `
+      <label>Layout <select id="vlay"><option value="split">Side by side</option><option value="over">Overlaid (video over LiDAR)</option></select></label>
+      <label>Video colour <select id="vcol"><option value="rgb">As filmed</option><option value="err">Error: distance to the LiDAR</option></select></label>
+      <div id="vleg" hidden><div class="legend" style="background:linear-gradient(90deg,#f4f2ec,#d03b3b)"></div><div class="legend-labels"><span>0 cm</span><span>error</span><span>≥ 50 cm</span></div></div>
+      <label>Cut ceiling <input id="vclip" type="range" ${clipRange()}></label>
+      <label>Trajectory (LiDAR) <input id="trj" type="checkbox"></label>`;
+    const top = new THREE.Plane(new THREE.Vector3(0, 0, -1), CUT()), bot = new THREE.Plane(new THREE.Vector3(0, 0, 1), -f.zmin);
+    meshUnlit.clippingPlanes = [top, bot]; videoMat.clippingPlanes = [top, bot];
+    $('#vclip').oninput = (e) => { top.constant = +e.target.value; };
+    $('#vcol').onchange = (e) => { v.paint(e.target.value); $('#vleg').hidden = e.target.value !== 'err'; };
+    $('#vlay').onchange = (e) => { const over = e.target.value === 'over'; split.on = !over;
+      if (over) { split.scene.remove(v.group); world.add(v.group); } else { world.remove(v.group); split.scene.add(v.group); }
+      resize(); placeSplitLabels(); };
+    $('#trj').onchange = (e) => { t.group.visible = e.target.checked; };
+    statRows([['LiDAR model', `${fmt(m.tris)} triangles`], ['Video model', `${fmt(v.tris)} triangles`], ['Video walk', `${Math.round(A.walk_length_m)} m, ${Math.round(V.video.seconds)} s`],
+      ['Video vs LiDAR', `median ${Math.round(A.median_error_cm)} cm`]]);
+  },
   async slam() {
     await drawSlam();
     info.innerHTML = `<h2>SLAM map</h2><p>Top-down occupancy map: wall hits in a horizontal slice ${meta.slam_map.slice}, with the SLAM-optimized walking path on this floor (green = start, blue = end).</p>`;
@@ -433,6 +514,7 @@ async function show(name) {
   const is2d = name === 'slam';
   $('#slam2d').hidden = !is2d; viewport.style.visibility = is2d ? 'hidden' : 'visible';
   $('#help').style.display = is2d ? 'none' : '';
+  if (name !== 'video' && split.on) { split.on = false; split.scene?.clear(); resize(); placeSplitLabels(); }
   if (name !== 'splat') { hideSplat(); splatActive = false; renderer.domElement.style.display = ''; }
   else renderer.domElement.style.display = 'none';
   try { await views[name](); } catch (e) { console.error(e); idle(); info.innerHTML = `<p class="note">Failed to load: ${e.message}</p>`; }
