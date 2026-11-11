@@ -5,6 +5,7 @@
   const $ = (id) => document.getElementById(id);
   const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   const D = await (await fetch('data/compare/compare.json')).json();
+  const V = await fetch('data/compare/video.json').then((r) => (r.ok ? r.json() : null)).catch(() => null);   // section 05 (optional)
   const S = D.scores, G = D.grid, pct = (v) => `${Math.round(v * 100)} %`;
   const best = D.sweep.reduce((a, b) => (b.f_score > a.f_score ? b : a));
   const sec = (s) => (s == null ? '—' : s < 90 ? `${Math.round(s)} s` : `${Math.floor(s / 60)} min ${Math.round(s % 60)} s`);
@@ -20,6 +21,9 @@
   const imgs = {}, load = (src) => new Promise((ok, err) => { const i = new Image(); i.onload = () => ok(i); i.onerror = err; i.src = src; });
   imgs.ref = await load('data/compare/plan_ref.png');
   for (const m of D.show) imgs[m] = await load(`data/compare/plan_${m}.png`);
+  const VK = V ? V.show.map((m) => 'v-' + m) : [];                                // video models: plan_v-<m>.png, scores in V
+  for (const k of VK) imgs[k] = await load(`data/compare/plan_${k}.png`);
+  const SC = (k) => (k.startsWith('v-') ? V.scores.video_full[k.slice(2)] : S[k]);
   const tinted = {};
   function tint() {                        // recolour the channel-coded images with the theme's ink / red / grey
     const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
@@ -51,6 +55,11 @@
     // image -> screen: image column i (x east) maps to screen y, image row j (north up, so y = lo.y + (h-1-j)*res) maps to screen x
     const put = (c) => { ctx.save(); ctx.translate(view.ox + (G.h) * G.res * view.s, view.oy); ctx.rotate(Math.PI / 2); ctx.scale(G.res * view.s, G.res * view.s); ctx.drawImage(c, 0, 0); ctx.restore(); };
     put(tinted.ref); put(tinted[cur]);
+    if (cur.startsWith('v-')) {                         // the video's camera path
+      ctx.strokeStyle = css('--door'); ctx.lineWidth = 1.5; ctx.globalAlpha = 0.8; ctx.beginPath();
+      V.path.forEach(([x, y], i) => { const [a, b] = toScreen(x, y); i ? ctx.lineTo(a, b) : ctx.moveTo(a, b); }); ctx.stroke(); ctx.globalAlpha = 1;
+    }
+    $('pathkey').hidden = !cur.startsWith('v-');
     ctx.lineWidth = 1.6; ctx.strokeStyle = css('--door');
     for (const d of D.doors[cur] || []) {
       const [x0, y0] = toScreen(d[0], d[1]), [x1, y1] = toScreen(d[2], d[3]);
@@ -64,11 +73,12 @@
     const L = [5, 10, 20, 50].find((m) => m * view.s > 60) || 50, bx = 14, by = H - 16;
     ctx.fillRect(bx, by, L * view.s, 2); ctx.fillText(`${L} m`, bx, by - 6);
     ctx.fillText('N →', W - 44, H - 12);
-    const s = S[cur];
-    $('vstat').innerHTML = `completeness <b>${pct(s.completeness)}</b> · precision <b>${pct(s.precision)}</b> · F <b>${s.f_score.toFixed(2)}</b> · doors <b>${s.doors ?? 0}</b> · known doors found <b>${D.door_check[cur]}/8</b>`;
+    const s = SC(cur), kd = cur.startsWith('v-') ? 'whole floor (the video saw the north half)' : `known doors found <b>${D.door_check[cur]}/8</b>`;
+    $('vstat').innerHTML = `completeness <b>${pct(s.completeness)}</b> · precision <b>${pct(s.precision)}</b> · F <b>${s.f_score.toFixed(2)}</b> · doors <b>${s.doors ?? 0}</b> · ${kd}`;
   }
   const tabs = $('tabs');
-  tabs.insertAdjacentHTML('afterbegin', D.show.map((m) => `<button class="tab" role="tab" data-m="${m}" aria-selected="${m === cur}">${D.label[m]}<small>F ${S[m].f_score.toFixed(2)}</small></button>`).join(''));
+  tabs.insertAdjacentHTML('afterbegin', D.show.map((m) => `<button class="tab" role="tab" data-m="${m}" aria-selected="${m === cur}">${D.label[m]}<small>F ${S[m].f_score.toFixed(2)}</small></button>`).join('')
+    + VK.map((k) => `<button class="tab" role="tab" data-m="${k}" aria-selected="false">${V.label[k.slice(2)]}<small>video · F ${SC(k).f_score.toFixed(2)}</small></button>`).join(''));
   tabs.querySelectorAll('.tab').forEach((b) => (b.onclick = () => { cur = b.dataset.m; tabs.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', t === b)); draw(); }));
   const zoom = (f, cx = wrap.clientWidth / 2, cy = wrap.clientHeight / 2) => { view.ox = cx - (cx - view.ox) * f; view.oy = cy - (cy - view.oy) * f; view.s *= f; draw(); };
   $('zin').onclick = () => zoom(1.5); $('zout').onclick = () => zoom(1 / 1.5); $('zfit').onclick = () => { fit(); draw(); };
@@ -130,6 +140,53 @@
   });
   $('sweeptable').innerHTML = `<tr><th>Tile</th><th>Stride</th><th>Points per tile</th><th>Tiles</th><th>Failed / empty</th><th>Completeness</th><th>Precision</th><th>F</th><th>Doors</th><th>Run time</th></tr>`
     + D.sweep.map((r) => `<tr class="${r === best ? 'best' : ''}"><td class="num">${r.tile_m} m</td><td class="num">${r.stride_m} m</td><td class="num">${r.max_points ? r.max_points.toLocaleString() : 'all (5 cm grid)'}</td><td class="num">${r.tiles}</td><td class="num">${r.failed} / ${r.empty}</td><td class="num">${pct(r.completeness)}</td><td class="num">${pct(r.precision)}</td><td class="num">${r.f_score.toFixed(2)}</td><td class="num">${r.doors}</td><td class="num">${sec(r.seconds)}</td></tr>`).join('');
+
+  if (V) video();
+
+  // ---------- section 05: the walkthrough video (LingBot-Map) -------------------------------------------------
+  function video() {
+    const A = V.align, R = V.video, mm = (v) => `${Math.floor(v / 60)} min ${Math.round(v % 60)} s`;
+    $('vstats').innerHTML = [
+      [`${Math.round(A.walk_length_m)} m`, `walked in ${mm(R.seconds)} of video (${R.resolution}, ${Math.round(R.fps)} fps)`],
+      [mm(R.inference_s), `LingBot-Map on one A100 for ${R.frames_used.toLocaleString()} frames; mesh fused in ${Math.round(V.mesh.fuse_s / 60)} min`],
+      [`${A.scale_m_per_unit.toFixed(1)} m`, `per model unit, fitted to the LiDAR (storey-height guess ${A.scale_guess.toFixed(1)} m); camera ${A.camera_height_m.toFixed(2)} m above the floor`],
+      [`${Math.round(A.median_error_cm)} cm`, `median distance of the video's walls to the LiDAR walls; ${pct(A.within_10cm)} within 10 cm, ${pct(A.within_25cm)} within 25 cm`],
+    ].map(([b, t]) => `<div><b>${b}</b><span>${t}</span></div>`).join('');
+    // error along the walk: one series, crosshair + tooltip
+    const box = $('alongchart'), W = 760, H = 260, m = { l: 48, r: 24, t: 16, b: 40 }, pts = V.along;
+    const xmax = Math.ceil(pts[pts.length - 1][0] / 25) * 25, ymax = Math.max(100, Math.ceil(Math.max(...pts.map((p) => p[1])) / 25) * 25);
+    const xs = (v) => m.l + (v / xmax) * (W - m.l - m.r), ys = (v) => H - m.b - (v / ymax) * (H - m.t - m.b);
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Wall error against distance walked">`;
+    for (let y = 0; y <= ymax; y += 25) svg += `<line class="ax" x1="${m.l}" x2="${W - m.r}" y1="${ys(y)}" y2="${ys(y)}"/><text class="axt" x="${m.l - 8}" y="${ys(y) + 4}" text-anchor="end">${y}</text>`;
+    for (let x = 0; x <= xmax; x += 25) svg += `<text class="axt" x="${xs(x)}" y="${H - m.b + 18}" text-anchor="middle">${x}</text>`;
+    svg += `<text class="axt" x="${(m.l + W - m.r) / 2}" y="${H - 4}" text-anchor="middle">distance walked (m)</text><text class="axt" x="${m.l - 8}" y="10" text-anchor="end">cm</text>`;
+    svg += `<line class="tol" x1="${m.l}" x2="${W - m.r}" y1="${ys(10)}" y2="${ys(10)}"/><text class="reft" x="${W - m.r - 4}" y="${ys(10) - 6}" text-anchor="end">10 cm tolerance</text>`;
+    svg += `<polyline class="line" points="${pts.map((p) => `${xs(p[0])},${ys(p[1])}`).join(' ')}"/>`;
+    svg += `<line class="cross" id="across" y1="${m.t}" y2="${H - m.b}" visibility="hidden"/><circle class="dot" id="adot" r="5" visibility="hidden"/>`;
+    svg += `<rect id="ahit" x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent"/></svg>`;
+    box.insertAdjacentHTML('beforeend', svg);
+    const sv = box.querySelector('svg'), tip = $('atip'), cr = $('across'), dot = $('adot');
+    $('ahit').addEventListener('pointermove', (e) => {
+      const r = sv.getBoundingClientRect(), x = ((e.clientX - r.left) / r.width) * W, v = ((x - m.l) / (W - m.l - m.r)) * xmax;
+      const p = pts.reduce((a, b) => (Math.abs(b[0] - v) < Math.abs(a[0] - v) ? b : a));
+      cr.setAttribute('x1', xs(p[0])); cr.setAttribute('x2', xs(p[0])); cr.setAttribute('visibility', 'visible');
+      dot.setAttribute('cx', xs(p[0])); dot.setAttribute('cy', ys(p[1])); dot.setAttribute('visibility', 'visible');
+      tip.hidden = false; tip.innerHTML = `<b>${Math.round(p[0])} m</b> walked<br>median error <b>${Math.round(p[1])} cm</b><br>${pct(p[2])} of nearby wall within 10 cm`;
+      const bb = box.getBoundingClientRect(); tip.style.left = `${Math.min(bb.width - 200, (xs(p[0]) / W) * r.width + 26)}px`; tip.style.top = `${(ys(p[1]) / H) * r.height - 10}px`;
+    });
+    $('ahit').addEventListener('pointerleave', () => { tip.hidden = true; cr.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); });
+    $('alongtable').innerHTML = '<tr><th>Walked</th><th>Median error</th><th>Within 10 cm</th></tr>' + pts.map((p) => `<tr><td class="num">${Math.round(p[0])} m</td><td class="num">${Math.round(p[1])} cm</td><td class="num">${pct(p[2])}</td></tr>`).join('');
+    // walked-area scores
+    const T = V.scores, rows = [
+      ['LiDAR (TrueView GO)', [['lidar', 'ours', 'Ours · LiDAR block model', true], ['lidar', 'ours-pts', 'Block method on the points (control)'], ['lidar', 'cloud2bim', 'Cloud2BIM'], ['lidar', 'scenescript-t8-20k', 'SceneScript · 8 m tiles']]],
+      ['Video (LingBot-Map mesh)', V.show.map((k) => ['video', k, V.label[k]])],
+    ];
+    $('walkedtable').innerHTML = '<tr><th>Model</th><th>Completeness</th><th>Precision</th><th>F at 10 cm</th><th>F at 25 cm</th><th>Wall length</th></tr>'
+      + rows.map(([g, rs]) => `<tr><td class="grp" colspan="6">${g}</td></tr>` + rs.map(([src, k, lab, b]) => {
+        const a = T[src].t10[k], c = T[src].t25[k];
+        return `<tr class="${b ? 'best' : ''}"><td><b>${lab}</b></td><td>${bar(a.completeness)}</td><td>${bar(a.precision)}</td><td>${bar(a.f_score)}</td><td>${bar(c.f_score)}</td><td class="num">${Math.round(a.wall_length_m)} m</td></tr>`;
+      }).join('')).join('');
+  }
 
   // ---------- theme
   $('theme').onclick = () => {

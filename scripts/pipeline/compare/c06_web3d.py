@@ -12,7 +12,7 @@ from scipy.spatial import cKDTree
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 from common import W, log
 
-FI = int(os.environ.get('BH_FLOOR', 2)); D = W('compare', f'f{FI}'); TOL = 0.10
+FI = int(os.environ.get('BH_FLOOR', 2)); D = W('compare', os.environ.get('BH_CMP_SET', f'f{FI}')); TOL = 0.10
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'data', 'compare')
 SHOW = ['ours', 'cloud2bim', 'scenescript', 'scenescript-t8-20k']
 ref = np.load(os.path.join(D, 'walls_ref.npz')); fz = float(ref['floor_z'])

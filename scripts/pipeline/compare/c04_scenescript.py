@@ -14,7 +14,7 @@ import numpy as np, torch
 sys.path.insert(0, os.getcwd())
 from src.networks.scenescript_model import SceneScriptWrapper
 
-WORK = os.environ['BH_WORK']; FI = int(os.environ.get('BH_FLOOR', 2)); D = os.path.join(WORK, 'compare', f'f{FI}')
+WORK = os.environ['BH_WORK']; FI = int(os.environ.get('BH_FLOOR', 2)); D = os.path.join(WORK, 'compare', os.environ.get('BH_CMP_SET', f'f{FI}'))
 CKPT = os.environ['BH_SS_CKPT']; NUC = float(os.environ.get('BH_SS_NUCLEUS', 0.05))
 TILE, STRIDE = float(os.environ.get('BH_SS_TILE', 28)), float(os.environ.get('BH_SS_STRIDE', 20))   # tile / core size (m)
 MAXP = int(os.environ.get('BH_SS_MAXPTS', 0))           # >0: random subset per tile, closer to Aria semi-dense density
