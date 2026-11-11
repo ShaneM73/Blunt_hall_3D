@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Roy Blunt Hall: our LiDAR block model compared with Meta SceneScript and Cloud2BIM on the 3rd floor, and every AI model used in the project.">
+<meta name="description" content="Roy Blunt Hall: our LiDAR block model compared with Meta SceneScript and Cloud2BIM on the 3rd floor, the same methods run on a walkthrough video rebuilt by LingBot-Map, and every AI model used in the project.">
 <title>Blunt Hall Model Comparison</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -70,6 +70,15 @@ p.note{color:var(--muted);font-size:13px;max-width:820px}
 .key i{display:inline-block;width:18px;height:3px;border-radius:2px}
 .key i.ok{background:var(--ink)}.key i.bad{background:var(--bad)}.key i.ref{background:var(--ref);opacity:.6}
 .key i.door{width:11px;height:11px;border:2px solid var(--door);border-radius:1px;background:none}
+.key i.path{background:var(--door);height:2px}.key i.vid{width:12px;height:12px;border-radius:1px;background:linear-gradient(135deg,#b9b2a6,#7d7a73)}
+.key i.ramp{width:60px;height:8px;background:linear-gradient(90deg,var(--wall3),var(--bad))}
+.vstats{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:14px}
+.vstats div{padding:12px 14px 12px 0}.vstats div+div{border-left:1px solid var(--line);padding-left:14px}
+.vstats b{display:block;font-family:var(--f-display);font-size:34px;font-weight:600;line-height:1}.vstats span{font-size:13px;color:var(--muted)}
+h3.sub{font-size:17px;margin:28px 0 2px}
+.chart .line{fill:none;stroke:var(--door);stroke-width:2}.chart .tol{stroke:var(--accent);stroke-width:1.5;stroke-dasharray:5 4}
+.chart .cross{stroke:var(--muted);stroke-width:1}.chart .dot{fill:var(--door);stroke:var(--surface);stroke-width:2}
+td.grp{font-family:var(--f-mono);font-size:11.5px;color:var(--muted);background:var(--soft)}
 .key i.known{width:11px;height:11px;border:2px dashed var(--muted);border-radius:50%;background:none}
 .wrap3d{position:relative;height:min(64vh,600px);background:var(--plan-bg);overflow:hidden;touch-action:none}
 .wrap3d canvas{display:block;width:100%;height:100%}
@@ -92,7 +101,7 @@ tr:last-child td{border-bottom:0}
 td.num{font-family:var(--f-mono);white-space:nowrap}
 tr.best td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .bar{display:flex;align-items:center;gap:8px;min-width:150px}
-.bar span{font-family:var(--f-mono);font-size:12.5px;width:38px;text-align:right}
+.bar span{font-family:var(--f-mono);font-size:12.5px;width:44px;text-align:right;white-space:nowrap}
 .bar i{flex:1;height:8px;background:var(--bar-track);border-radius:4px;position:relative;overflow:hidden}
 .bar i b{position:absolute;left:0;top:0;bottom:0;background:var(--bar);border-radius:0 4px 4px 0}
 .tag{display:inline-block;font-family:var(--f-mono);font-size:11px;border:1px solid var(--line);border-radius:3px;padding:0 5px;color:var(--muted);white-space:nowrap}
@@ -114,6 +123,7 @@ footer{max-width:1120px;margin:0 auto;padding:18px 16px 40px;color:var(--muted);
 @media (max-width:760px){
   .heroes{grid-template-columns:1fr}.hero+.hero{border-left:0;border-top:1px solid var(--line);padding-left:0}
   .findings{grid-template-columns:1fr} .vstat{margin-left:0;width:100%}
+  .vstats{grid-template-columns:repeat(2,1fr)}.vstats div:nth-child(3){border-left:0;padding-left:0}.vstats div:nth-child(n+3){border-top:1px solid var(--line)}
   .planwrap{height:52vh}
 }
 </style>
@@ -126,17 +136,17 @@ footer{max-width:1120px;margin:0 auto;padding:18px 16px 40px;color:var(--muted);
 <main>
   <div class="eyebrow">Roy Blunt Hall · Missouri State University · handheld LiDAR, 4 Nov 2026</div>
   <h1>Which method draws <em>the walls</em> best?</h1>
-  <p class="lede">The 3rd floor of Roy Blunt Hall (19 million cleaned LiDAR points, about 37 m × 137 m) was turned into a wall model three ways: our own geometric block model, <a href="https://github.com/VaclavNezerka/Cloud2BIM">Cloud2BIM</a> (point cloud → IFC) and Meta's <a href="https://github.com/facebookresearch/scenescript">SceneScript</a> (point cloud → a learned "scene language"). Every result was scored the same way against the measured walls.</p>
+  <p class="lede">The 3rd floor of Roy Blunt Hall (19 million cleaned LiDAR points, about 37 m × 137 m) was turned into a wall model three ways: our own geometric block model, <a href="https://github.com/VaclavNezerka/Cloud2BIM">Cloud2BIM</a> (point cloud → IFC) and Meta's <a href="https://github.com/facebookresearch/scenescript">SceneScript</a> (point cloud → a learned "scene language"). Every result was scored the same way against the measured walls. Then the same three methods were run again on a 3½-minute walkthrough video, rebuilt in 3D by <a href="https://github.com/Robbyant/lingbot-map">LingBot-Map</a> without any LiDAR (section 05).</p>
   <div class="heroes" id="heroes"></div>
 
-  <h2><small>01 · See it</small>The three wall models on the floor plan</h2>
-  <p class="note">Each line is a modelled wall's centre line. Ink lines lie on a measured wall (within 10 cm, plus half the wall's thickness); red lines have no measured wall nearby. Grey is the LiDAR on vertical surfaces, 0.3–2.0 m above the floor. Drag to pan, scroll or pinch to zoom, hover for coordinates.</p>
+  <h2><small>01 · See it</small>The wall models on the floor plan</h2>
+  <p class="note">Each line is a modelled wall's centre line. Ink lines lie on a measured wall (within 10 cm, plus half the wall's thickness); red lines have no measured wall nearby. Grey is the LiDAR on vertical surfaces, 0.3–2.0 m above the floor. The tabs marked <i>video</i> are the models built from the walkthrough video (section 05); the blue line is the camera path. Drag to pan, scroll or pinch to zoom, hover for coordinates.</p>
   <div class="viewer">
     <div class="vbar" role="tablist" id="tabs"><div class="vtools"><button id="zin" title="Zoom in" aria-label="Zoom in">+</button><button id="zout" title="Zoom out" aria-label="Zoom out">−</button><button id="zfit" title="Fit the floor" aria-label="Fit the floor">⤢</button></div></div>
     <div class="planwrap" id="planwrap"><canvas id="plan" aria-label="Floor plan with the selected method's walls"></canvas><div class="plan-tip" id="ptip" hidden></div></div>
     <div class="vfoot">
       <span class="key"><i class="ok"></i>✓ on a measured wall</span><span class="key"><i class="bad"></i>✕ no measured wall within tolerance</span>
-      <span class="key"><i class="door"></i>door / opening</span><span class="key"><i class="known"></i>8 known office doors (Room 319 wall)</span><span class="key"><i class="ref"></i>LiDAR wall points</span>
+      <span class="key"><i class="door"></i>door / opening</span><span class="key"><i class="known"></i>8 known office doors (Room 319 wall)</span><span class="key"><i class="ref"></i>LiDAR wall points</span><span class="key" id="pathkey" hidden><i class="path"></i>video camera path</span>
       <span class="vstat" id="vstat"></span>
     </div>
   </div>
@@ -168,31 +178,64 @@ footer{max-width:1120px;margin:0 auto;padding:18px 16px 40px;color:var(--muted);
   <div class="chart" id="sweepchart"><div class="chart-tip" id="ctip" hidden></div></div>
   <details><summary>Show the runs as a table</summary><div class="tablewrap"><table id="sweeptable"></table></div></details>
 
-  <h2><small>05 · What we found</small>Findings</h2>
+  <h2 id="video"><small>05 · From a video</small>No LiDAR: the same methods on a walkthrough video</h2>
+  <p class="note">On 10 Nov 2026 the 3rd-floor aisle was filmed with a hand-held DJI camera (1080p, 3 min 35 s), from the stairwell around the light-well block. <a href="https://github.com/Robbyant/lingbot-map">LingBot-Map</a>, a feed-forward streaming 3D reconstruction model, turned the frames into a depth map and a camera pose each. The depth maps were filtered and fused into a mesh, then scaled and aligned to the LiDAR (the video has no real size or direction). The video mesh was then given to the same three wall methods as the LiDAR. The LiDAR is used only to align and score the result.</p>
+  <div class="vstats" id="vstats"></div>
+  <div class="viewer" id="vv3d">
+    <div class="vbar"><div role="tablist" id="vtabs" style="display:flex;flex-wrap:wrap;gap:6px">
+        <button class="tab" role="tab" data-c="rgb" aria-selected="true">Video colours<small>as filmed</small></button>
+        <button class="tab" role="tab" data-c="err" aria-selected="false">Error<small>distance to the LiDAR</small></button></div>
+      <div class="vtools" style="gap:6px;align-items:center">
+        <label class="chk"><input type="checkbox" id="vshowpts" checked> LiDAR wall points</label>
+        <label class="chk"><input type="checkbox" id="vshowpath" checked> Camera path</label>
+        <button id="vreset" title="Reset the view" aria-label="Reset the view">⤢</button>
+      </div></div>
+    <div class="wrap3d" id="vwrap"><div class="load3d" id="vload">Loading the video mesh…</div></div>
+    <div class="vfoot" id="vfoot">
+      <span class="key" id="vkeyrgb"><i class="vid"></i>video mesh (LingBot-Map, fused and aligned)</span>
+      <span class="key" id="vkeyerr" hidden><i class="ramp"></i><span id="vramp">0 cm … ≥ 50 cm from the LiDAR</span></span>
+      <span class="key"><i class="ref"></i>LiDAR wall points</span><span class="key"><i class="path"></i>camera path</span>
+      <span class="vstat" id="vstat3dv"></span>
+    </div>
+  </div>
+  <h3 class="sub">How far off is it along the walk?</h3>
+  <p class="note">Median distance from the video's walls to the measured walls within 3 m of the camera, against the distance walked. The dashed line is the 10 cm scoring tolerance. Hover for values.</p>
+  <div class="chart" id="alongchart"><div class="chart-tip" id="atip" hidden></div></div>
+  <details><summary>Show the error along the walk as a table</summary><div class="tablewrap" style="max-height:320px;overflow:auto"><table id="alongtable"></table></div></details>
+  <h3 class="sub">Wall models from the video vs from the LiDAR, in the walked area</h3>
+  <p class="note">Scored like section 03, but only within 3 m of the camera path (the part of the floor the video could see), so the LiDAR and video models are judged on the same walls. At 10 cm tolerance the score mostly measures the video's alignment error (median 20 cm); at 25 cm it shows whether the wall layout itself is right. <i>Block method</i> is our block rules applied straight to points; on the LiDAR it is a control and an upper bound, since it is built from the same points it is scored against.</p>
+  <div class="tablewrap"><table id="walkedtable"></table></div>
+
+  <h2><small>06 · What we found</small>Findings</h2>
   <div class="findings" id="findings">
     <div class="finding"><div class="k">0.88</div><h3>Scan geometry wins</h3><p>Our block model fits wall faces directly in the cleaned LiDAR (15 cm blocks on the building axes), so it follows the real walls best: 84 % of the measured walls covered, 92 % of its walls on a real wall.</p></div>
     <div class="finding"><div class="k">0.26 → 0.74</div><h3>SceneScript is a room-scale model</h3><p>Fed 28 m tiles it misses most walls; at 8–10 m tiles (about one room) it reaches F 0.72–0.74. Thinning each tile to 15–30k points matters far less than tile size. Its walls are thin planes, often slightly off the face or drawn across open space.</p></div>
     <div class="finding"><div class="k">0.54</div><h3>Cloud2BIM gets the corridors, not the rooms</h3><p>Long corridor walls are right; the central light-well block, most partitions and every opening are missing. It needed three small changes to run on a handheld scan (below).</p></div>
+    <div class="finding"><div class="k" id="fvideo">0.46 / 0.61</div><h3>A video gets the layout, not the precision</h3><p>From 3½ minutes of video, LingBot-Map rebuilt 194 m of corridor at the right scale (camera 1.6 m above the floor). Half of its wall surface lies within 20 cm of the LiDAR; the error stays at 3–15 cm along straight corridors and jumps to 40–95 cm at the stairwell and one turn. The best video wall model (our block method) reaches F 0.46 at 10 cm and 0.61 at 25 cm, against 0.94 / 0.95 for the LiDAR model in the same area.</p></div>
     <div class="finding"><div class="k">0–2 / 8</div><h3>Closed doors defeat everyone</h3><p>Of the 8 recessed office doors on the Room 319 wall, SceneScript finds at most 2; Cloud2BIM and our openings detector find none. The route guide places Room 319 by counting the regular 2.75 m door spacing instead.</p></div>
   </div>
 
-  <h2><small>06 · Set-up notes</small>What it took to run them</h2>
+  <h2><small>07 · Set-up notes</small>What it took to run them</h2>
   <div class="tablewrap"><table>
     <tr><th>Method</th><th>Change or fix</th><th>Why</th></tr>
     <tr><td>Cloud2BIM</td><td>Slab-density threshold 0.6 → 0.35</td><td>It finds floors and ceilings as height levels holding ≥ 60 % of the densest level's points. A handheld scanner sees the ceiling at ~40 % of the floor's density, so the ceiling (and so the storey) was missed.</td></tr>
     <tr><td>Cloud2BIM</td><td>LaTeX off in its plots; room-zone step made non-fatal</td><td>No LaTeX on the server; its IfcSpace zone segmentation crashed on this storey (walls and slabs are unaffected). 7 of its 101 IFC walls do not triangulate.</td></tr>
     <tr><td>SceneScript</td><td>torchsparse from its <i>master</i> branch (2.1)</td><td>The "v2.1.0" branch actually builds 2.0, which puts the batch index last: the encoder then saw 481 scenes instead of one and decoded NaN.</td></tr>
     <tr><td>SceneScript</td><td>PyTorch 2.4 (CUDA 12.1) restored; GCC 12 in the env</td><td>pip replaced PyTorch while installing torchsparse's dependencies; CUDA 12.1 rejects the system's GCC 13.</td></tr>
+    <tr><td>LingBot-Map</td><td>FlashInfer 0.6.17 with its prebuilt kernels; GPU TSDF fusion (Open3D VoxelBlockGrid)</td><td>FlashInfer 0.7 compiles its kernels on first use and needs build tools the server lacks. Open3D's older TSDF volume returned empty meshes on these depth maps.</td></tr>
+    <tr><td>LingBot-Map</td><td>Windowed inference, long-sequence checkpoint, keyframe every 2nd frame</td><td>2,582 frames exceed the 320-frame range it was trained on; windows of 128 keyframes are aligned to each other by the model.</td></tr>
+    <tr><td>LingBot-Map</td><td>Depth filtering before fusion (confidence top half, sky, depth jumps); surfaces kept only if 3 frames agree</td><td>Each frame's depth disagrees with its neighbours by about 2.5 %, which leaves floating layers if the depth maps are simply stacked.</td></tr>
     <tr><td>SceneScript</td><td>Tiling; failed or empty tiles skipped and counted</td><td>The floor is far larger than its 32 m input cube. A few tiles return nothing or crash in the decoder (2 of 131 at 8 m).</td></tr>
   </table></div>
   <p class="note">All changes, scripts and settings: <a href="https://github.com/ShaneM73/Blunt_hall_3D/tree/main/scripts/pipeline/compare">scripts/pipeline/compare</a> (including <code>cloud2bim.patch</code>). SceneScript weights (CC BY-NC) were obtained from <a href="https://www.projectaria.com/scenescript/">projectaria.com/scenescript</a> and are not redistributed.</p>
 
-  <h2><small>07 · Everything we used</small>All models in the Blunt Hall project</h2>
+  <h2><small>08 · Everything we used</small>All models in the Blunt Hall project</h2>
   <div class="tablewrap"><table id="models">
     <tr><th>Model / method</th><th>From</th><th>Kind</th><th>Used for</th><th>What it gave here</th><th>Licence</th></tr>
     <tr><td><b>Our block model</b><br><span class="tag">s12 · g03 · g04</span></td><td>This project</td><td>Geometry (no learning)</td><td>Walls, slabs, doorways, stairs and the route of the 3D guide</td><td>F 0.88 on the 3rd floor; 4 straight flights + 3 landings; 107 m route</td><td>MIT</td></tr>
     <tr><td><b>SceneScript</b> (non-Manhattan)</td><td>Meta Reality Labs</td><td>Learned: sparse 3D encoder + transformer decoder</td><td>Comparison: walls, doors from points</td><td>F 0.26 (28 m tiles) → 0.74 (8 m tiles)</td><td>CC BY-NC</td></tr>
     <tr><td><b>Cloud2BIM</b></td><td>CTU Prague (Zbirovský &amp; Nežerka)</td><td>Point density + image morphology</td><td>Comparison: slabs, walls, openings → IFC</td><td>F 0.54; 101 walls, 2 slabs, 0 openings; 7 min 15 s</td><td>MIT</td></tr>
+    <tr><td><b>LingBot-Map</b> (long checkpoint)</td><td>Robbyant</td><td>Learned: streaming geometric context transformer</td><td>3D from a walkthrough video, no LiDAR (section 05)</td><td>2,582 frames in 4 min 42 s; 194 m walk; median wall error 20 cm after alignment</td><td>Apache 2.0</td></tr>
     <tr><td><b>SAM 3</b></td><td>Meta</td><td>Learned: text-prompted segmentation</td><td>Furniture in 5,745 photos; room-number sign plates</td><td>162 furniture instances; 140 sign boxes</td><td>SAM licence</td></tr>
     <tr><td><b>SAM 3D Objects</b></td><td>Meta</td><td>Learned: single-image 3D reconstruction</td><td>A full 3D model of each furniture piece</td><td>158 reconstructed, 96 fitted to the LiDAR (≥ 60 % of points within 3 cm)</td><td>SAM licence</td></tr>
     <tr><td><b>EasyOCR</b> (CRAFT + recogniser)</td><td>JaidedAI</td><td>Learned: text detection + reading</td><td>Room numbers on door signs</td><td>28 signs placed in 3D (e.g. 313, 318, 323, 329), some misread; 319 too blurred to read</td><td>Apache 2.0</td></tr>
@@ -209,5 +252,6 @@ footer{max-width:1120px;margin:0 auto;padding:18px 16px 40px;color:var(--muted);
 </script>
 <script src="compare.js"></script>
 <script type="module" src="compare3d.js"></script>
+<script type="module" src="video3d.js"></script>
 </body>
 </html>

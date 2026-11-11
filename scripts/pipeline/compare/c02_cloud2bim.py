@@ -6,7 +6,7 @@ Out: compare/f<k>/cloud2bim_walls.npz (V, F, doors, seconds), cloud2bim_summary.
 import os, json
 import numpy as np, ifcopenshell, ifcopenshell.geom
 
-WORK = os.environ['BH_WORK']; FI = int(os.environ.get('BH_FLOOR', 2)); D = os.path.join(WORK, 'compare', f'f{FI}')
+WORK = os.environ['BH_WORK']; FI = int(os.environ.get('BH_FLOOR', 2)); D = os.path.join(WORK, 'compare', os.environ.get('BH_CMP_SET', f'f{FI}'))
 f = ifcopenshell.open(os.path.join(D, 'cloud2bim.ifc'))
 st = ifcopenshell.geom.settings(); st.set(st.USE_WORLD_COORDS, True)
 

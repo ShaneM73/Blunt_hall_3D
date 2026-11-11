@@ -184,6 +184,55 @@ BH_FLOOR=2 python scripts/pipeline/compare/c05_web.py          # data/compare/ f
 BH_FLOOR=2 python scripts/pipeline/compare/c06_web3d.py        # data/compare/ 3D wall models + wall points (3D section)
 ```
 
+#### No LiDAR: the same methods on a walkthrough video (LingBot-Map)
+
+A 3 min 35 s hand-held video (DJI, 1080p, 10 Nov 2026) from the stairwell along the 3rd-floor aisle and around the light-well
+block was rebuilt in 3D by [LingBot-Map](https://github.com/Robbyant/lingbot-map) (Apache 2.0; feed-forward streaming
+reconstruction, one depth map + camera pose per frame), then given to the same three wall methods. The LiDAR is only used to
+align and score the result (page section 05).
+
+| Step | Result |
+|---|---|
+| LingBot-Map, long checkpoint, windowed (128 keyframes, keyframe every 2nd frame) | 2,582 frames in 4 min 42 s on one A100 (25 GB) |
+| Fusion (`c07b`): keep each frame's most confident half, drop sky and depth jumps, GPU TSDF, surfaces seen by ≥ 3 frames | 1.04 M triangles, ~5 cm voxels |
+| Alignment (`c08`): level from camera up + floor normals, scale guess from storey height, FFT plan search, similarity ICP | 14.17 m per model unit, camera 1.59 m above the floor, 194 m walked |
+| Error of the video's walls against the LiDAR walls | median 20 cm; 34 % within 10 cm, 57 % within 25 cm; 3–15 cm on straight corridors, 40–95 cm at the stairwell and one turn |
+
+Scored only within 3 m of the camera path (the part of the floor the video saw), so LiDAR and video models are judged on the same walls:
+
+| Model | Input | F at 10 cm | F at 25 cm |
+|---|---|---|---|
+| Ours (fitted faces + blocks) | LiDAR | 0.94 | 0.95 |
+| Block method straight on points (`c02_ours_points.py`; a control, built from the scored points) | LiDAR | 0.97 | 0.97 |
+| SceneScript, 8 m tiles | LiDAR | 0.81 | 0.86 |
+| Cloud2BIM | LiDAR | 0.55 | 0.63 |
+| **Block method** | **video** | **0.46** | **0.61** |
+| Cloud2BIM | video | 0.42 | 0.54 |
+| SceneScript, 8 m tiles | video | 0.33 | 0.56 |
+
+The video gets the layout and the scale right but not the precision: at 10 cm the score mostly measures its alignment error;
+at 25 cm the wall layout from video approaches Cloud2BIM on the LiDAR. Raw depth maps disagree frame to frame by ~2.5 %,
+so they must be filtered and fused before any wall method can use them.
+
+```bash
+# env: conda python 3.10, torch 2.8.0+cu128, pip install -e lingbot-map[vis], flashinfer-python==0.6.17 + flashinfer-jit-cache==0.6.17+cu128
+# (0.7.x has no prebuilt kernels), open3d; weights robbyant/lingbot-map in work/models/lingbot-map/ (+ skyseg.onnx)
+LB=work/2026-11-10-video/lingbot
+cd lingbot-map && LB_OUT=$LB/pred_long_w.npz python .../c07_lingbot_run.py --model_path .../lingbot-map-long.pt \
+    --video_path walk.mp4 --fps 10 --mode windowed --window_size 128 --keyframe_interval 2 --overlap_keyframes 16
+LB_VOX=0.00067 LB_DMAXP=99.5 python scripts/pipeline/compare/c07b_lingbot_mesh.py $LB/pred_long_w.npz $LB/fine
+LB_DIR=$LB python scripts/pipeline/compare/c08_lingbot_align.py      # -> fine_aligned_mesh.ply, fine_align.json/png
+LB_DIR=$LB python scripts/pipeline/compare/c07c_video_set.py         # -> compare/f2-video/ (points, cloud2bim.xyz, region)
+# the wall methods on the video set (BH_CMP_SET=f2-video), then scores: whole floor, and walked area at 10 / 25 cm
+python cloud2entities.py scripts/pipeline/compare/cloud2bim_f2-video.yaml; BH_CMP_SET=f2-video ... c02_cloud2bim.py
+BH_CMP_SET=f2-video ... c04_scenescript.py (BH_SS_TILE=8 BH_SS_STRIDE=5 BH_SS_MAXPTS=20000 BH_SS_TAG=t8-20k)
+for s in f2 f2-video; do BH_CMP_SET=$s python scripts/pipeline/compare/c02_ours_points.py; done
+BH_CMP_SET=f2-video python scripts/pipeline/compare/c03_score.py
+for s in f2 f2-video; do for t in 0.10 0.25; do BH_CMP_SET=$s BH_CMP_TOL=$t BH_CMP_REGION=work/.../compare/f2-video/region.npz \
+    BH_CMP_OUT=walked$([ $t = 0.25 ] && echo -tol25) python scripts/pipeline/compare/c03_score.py; done; done
+LB_DIR=$LB python scripts/pipeline/compare/c09_video_web.py          # data/compare/ video_mesh.bin, video.json, plan_v-*.png
+```
+
 ## Known limitations
 
 - Coordinates are local SLAM metres for each scan (no GNSS indoors), so the two scans are not in a common frame. Z is up.

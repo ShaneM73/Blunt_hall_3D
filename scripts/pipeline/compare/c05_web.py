@@ -9,7 +9,7 @@ import numpy as np, cv2
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 from common import W, log
 
-FI = int(os.environ.get('BH_FLOOR', 2)); D = W('compare', f'f{FI}')
+FI = int(os.environ.get('BH_FLOOR', 2)); D = W('compare', os.environ.get('BH_CMP_SET', f'f{FI}'))
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'data', 'compare'); os.makedirs(OUT, exist_ok=True)
 SHOW = ['ours', 'cloud2bim', 'scenescript', 'scenescript-t8-20k']
 LABEL = {'ours': 'Ours · LiDAR block model', 'cloud2bim': 'Cloud2BIM', 'scenescript': 'SceneScript · 28 m tiles',

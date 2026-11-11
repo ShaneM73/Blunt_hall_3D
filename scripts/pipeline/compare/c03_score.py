@@ -7,7 +7,9 @@ The walls are compared in plan (2.5 cm grid) so thick walls (blocks, IFC solids)
 - completeness: share of reference points within 10 cm of the modelled footprint
 - precision: share of modelled centre line within 10 cm + half the local wall thickness of a reference point
 - F-score; wall length = centre-line length; doors; run time
-Out: compare/f<k>/scores.json + renders/compare_f<k>_plan.png"""
+BH_CMP_SET picks the data set (default f<k>; f<k>-video = LingBot-Map video); BH_CMP_REGION=<region.npz> scores only the
+plan within 'reach' of the video's camera path and writes scores_<BH_CMP_OUT>.json instead.
+Out: compare/<set>/scores.json + renders/compare_f<k>_plan.png"""
 import os, sys, json, glob
 import numpy as np, trimesh
 from scipy.spatial import cKDTree
@@ -15,7 +17,7 @@ import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 from common import W, log
 
-FI = int(os.environ.get('BH_FLOOR', 2)); TOL = 0.10; D = W('compare', f'f{FI}')
+FI = int(os.environ.get('BH_FLOOR', 2)); TOL = float(os.environ.get('BH_CMP_TOL', 0.10)); D = W('compare', os.environ.get('BH_CMP_SET', f'f{FI}'))
 ref = np.load(os.path.join(D, 'walls_ref.npz')); fz = float(ref['floor_z'])
 R = ref['xyz']; R = R[np.unique(np.floor(R / 0.05).astype(np.int64), axis=0, return_index=True)[1]]       # 5 cm grid
 allp = np.load(os.path.join(D, 'points.npz'))['xyz']; allp = allp[(allp[:, 2] > fz + 0.3) & (allp[:, 2] < fz + 2.0)]
@@ -29,9 +31,16 @@ lo = Rw[:, :2].min(0) - 3; hi = Rw[:, :2].max(0) + 3; NX, NY = ((hi - lo) / RES)
 def px(p): return np.round((np.asarray(p)[..., :2] - lo) / RES).astype(np.int32)
 refimg = np.zeros((NY, NX), bool); q = px(Rw); refimg[q[:, 1].clip(0, NY - 1), q[:, 0].clip(0, NX - 1)] = True
 dist_to_ref = ndimage.distance_transform_edt(~refimg) * RES
+REG = os.environ.get('BH_CMP_REGION', '')                  # optional: score only inside a plan region (npz: path xy, reach m)
+if REG:
+    rg = np.load(REG); pimg = np.zeros((NY, NX), bool); pq = px(rg['path']); pimg[pq[:, 1].clip(0, NY - 1), pq[:, 0].clip(0, NX - 1)] = True
+    region = ndimage.distance_transform_edt(~pimg) * RES <= float(rg['reach'])
+else: region = np.ones((NY, NX), bool)
+inreg = region[q[:, 1].clip(0, NY - 1), q[:, 0].clip(0, NX - 1)]
 files = sorted(glob.glob(os.path.join(D, '*_walls.npz')))
 PLOT = [x for x in os.environ.get('BH_CMP_PLOT', '').split(',') if x]          # methods to draw (default: all), in this order
 pfiles = [os.path.join(D, f'{x}_walls.npz') for x in PLOT] if PLOT else files
+if REG: pfiles = files[:1]                                                       # region scores: numbers only
 scores = {}; fig, axs = plt.subplots(1, len(pfiles), figsize=(5.2 * len(pfiles), 15), squeeze=False)
 axmap = dict(zip(pfiles, axs[0]))
 for f in files:
@@ -46,8 +55,8 @@ for f in files:
             P2 = px(T); cv2.polylines(mask, [P2], True, 1, 1)                          # vertical face: its trace
     mask = mask.astype(bool)
     dist_to_model = ndimage.distance_transform_edt(~mask) * RES
-    comp = float((dist_to_model[q[:, 1].clip(0, NY - 1), q[:, 0].clip(0, NX - 1)] <= TOL).mean())
-    sk = skeletonize(mask); half = ndimage.distance_transform_edt(mask) * RES
+    comp = float((dist_to_model[q[:, 1].clip(0, NY - 1), q[:, 0].clip(0, NX - 1)] <= TOL)[inreg].mean())
+    sk = skeletonize(mask) & region; half = ndimage.distance_transform_edt(mask) * RES
     ok = dist_to_ref[sk] <= TOL + half[sk]; prec = float(ok.mean()) if sk.any() else 0.0
     fs = 2 * comp * prec / max(1e-9, comp + prec)
     scores[name] = dict(completeness=round(comp, 3), precision=round(prec, 3), f_score=round(fs, 3),
@@ -55,6 +64,7 @@ for f in files:
                         doors=int(len(m['doors'])) if 'doors' in m.files else None,
                         seconds=None if 'seconds' not in m.files or not np.isfinite(m['seconds']) else round(float(m['seconds']), 1))
     log(name, scores[name])
+    if REG: continue
     good = np.zeros_like(sk); good[sk] = ok; np.savez_compressed(os.path.join(D, f'{name}_plan.npz'), good=good, bad=sk & ~good)
     if ax is None: continue
     ax.imshow(refimg, origin='lower', cmap='Greys', alpha=0.35, extent=[lo[0], hi[0], lo[1], hi[1]])
@@ -62,6 +72,9 @@ for f in files:
     if 'doors' in m.files:
         for d in m['doors']: ax.add_patch(plt.Rectangle((d[0], d[1]), d[3] - d[0], d[4] - d[1], fill=False, ec='#1f4fbf', lw=1.2))
     ax.set_aspect('equal'); ax.set_title(f"{LABEL.get(name, name)}\ncompleteness {comp:.0%} · precision {prec:.0%} · F {fs:.2f}", fontsize=11)
+if REG:
+    json.dump(dict(region=REG, reach_m=float(rg['reach']), ref_points=int(inreg.sum()), scores=scores),
+              open(os.path.join(D, f"scores_{os.environ.get('BH_CMP_OUT', 'region')}.json"), 'w'), indent=1); sys.exit()
 json.dump(scores, open(os.path.join(D, 'scores.json'), 'w'), indent=1)
 np.savez_compressed(os.path.join(D, 'ref_plan.npz'), ref=refimg, lo=lo, res=RES)                 # for the web page (c05)
-fig.savefig(W('renders', f'compare_f{FI}_plan.png'), dpi=70, bbox_inches='tight')
+fig.savefig(W('renders', f"compare_{os.environ.get('BH_CMP_SET', f'f{FI}')}_plan.png"), dpi=70, bbox_inches='tight')
