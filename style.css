@@ -72,3 +72,9 @@ main { position: relative; height: calc(100% - 58px); }
   border: 2px solid #fffc; pointer-events: none; }
 .btn { border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); padding: 6px 12px; border-radius: 6px;
   cursor: pointer; font: inherit; margin: 6px 0; width: 100%; }
+
+/* LiDAR vs video: labels over the two halves of the split view */
+#splitlbl { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+#splitlbl div { position: absolute; font-size: 12px; font-weight: 600; background: var(--panel, #fff); color: var(--ink, #1d1f22); border: 1px solid var(--line, #d9d6cf); border-radius: 3px; padding: 3px 8px; }
+#splitlbl div small { font-weight: 400; color: var(--muted); margin-left: 6px; }
+#splitlbl i { position: absolute; background: var(--line, #d9d6cf); }

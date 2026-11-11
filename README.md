@@ -21,6 +21,7 @@ Use the **Scan** and **View** selectors in the side panel to switch between scan
 | 3D model | Tiled screened-Poisson mesh of the cleaned cloud: 11.1 M triangles at full resolution, 6.7 M on the web, split by floor and area | 1.8 M triangles |
 | Building model | SketchUp-style structural model: 4,266 flat wall, floor and ceiling rectangles with door openings, photo-textured at 2 cm per texel. The stairwell keeps its measured mesh. **Walk in the building** (first person, WASD). One glTF 2.0 file per floor, ready for Blender, Unity or Unreal. **Blender scenes** with 159 furniture objects (SAM 3 + SAM 3D) are in the [release](https://github.com/ShaneM73/Blunt_hall_3D/releases/tag/blender-2026-11-04) | — |
 | Gaussian splat | Training (added in a follow-up) | 664 k Gaussians |
+| LiDAR vs video | The 3rd-floor LiDAR 3D model side by side with the model rebuilt from a walkthrough video by LingBot-Map (no LiDAR), one shared camera; or overlaid, with the video coloured by its distance to the LiDAR. Details in the comparison page, section 05 | 220 k triangles (video) |
 
 No build step is needed: the site is static HTML + three.js. To preview it locally, run `python3 -m http.server` and open `http://localhost:8000`.
 
